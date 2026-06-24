@@ -3,6 +3,8 @@ package com.portfolio.farewatch.web;
 import com.portfolio.farewatch.notify.NotificationDispatcher;
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
+import com.portfolio.farewatch.weather.WeatherEstimate;
+import com.portfolio.farewatch.weather.WeatherService;
 import com.portfolio.farewatch.web.dto.AlertResponse;
 import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
@@ -30,12 +32,14 @@ public class WatchController {
 	private final WatchService watchService;
 	private final PollService pollService;
 	private final NotificationDispatcher notificationDispatcher;
+	private final WeatherService weatherService;
 
 	public WatchController(WatchService watchService, PollService pollService,
-			NotificationDispatcher notificationDispatcher) {
+			NotificationDispatcher notificationDispatcher, WeatherService weatherService) {
 		this.watchService = watchService;
 		this.pollService = pollService;
 		this.notificationDispatcher = notificationDispatcher;
+		this.weatherService = weatherService;
 	}
 
 	@PostMapping
@@ -80,5 +84,10 @@ public class WatchController {
 	@GetMapping("/{id}/alerts")
 	public List<AlertResponse> alerts(@PathVariable UUID id) {
 		return watchService.alertHistory(id);
+	}
+
+	@GetMapping("/{id}/weather")
+	public List<WeatherEstimate> weather(@PathVariable UUID id) {
+		return weatherService.forWatch(id);
 	}
 }
