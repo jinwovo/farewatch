@@ -1,0 +1,28 @@
+name: android
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'   # Android toolchain (D8) is unstable on 21; backend uses 21 separately
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --console=plain assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: farewatch-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

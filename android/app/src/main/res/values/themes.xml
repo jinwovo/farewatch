@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme is a platform Material theme (no AppCompat/Material XML dep needed);
+         the actual UI styling is done in Compose via MaterialTheme. -->
+    <style name="Theme.Farewatch" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
