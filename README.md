@@ -65,6 +65,7 @@ flowchart LR
 - [x] 폴 **부하 테스트** — k6 30VU: **~145 polls/s · p95 211ms · 0% 에러** (`load/k6-poll.js`)
 - [x] 도착지 **날씨** — Open-Meteo 실예보(D-16) ↔ **평년값** 크로스오버 (라이브: 홍콩 8월 평년 30°C, 다낭 +9일 실예보 34°C)
 - [x] **Android(Compose) 앱 빌드** — Kotlin + Compose + Retrofit, `assembleDebug` → `app-debug.apk` 9.4MB (JDK 17, `android/`)
+- [x] **Amadeus 실어댑터** — OAuth2 토큰 + Flight Offers Search → 최저가 매핑 (AmadeusFareProviderTest, JDK HttpServer 스텁)
 - [ ] 웹 데모 GIF + Android 에뮬레이터 실행 녹화 (앱 빌드는 완료, 실행 시연만 남음)
 
 ## 스택 (Stack)
@@ -126,7 +127,8 @@ cd web && npm install && npm run dev
 - [x] **P2** 분산 스케줄 — 시간당 스윕 + **Redis 분산락**, "락 보유 중 중복폴링 0" 테스트, 변화감지 → `price_alert`(dedup_key 멱등) ⭐
 - [x] **P3 (알림)** — 트랜잭션 **아웃박스** + 디스패처(멱등 dedup · 재시도→FAILED) · 이메일/푸시 **멀티채널**(로그 sender, FCM/SMTP 드롭인) · `/alerts` 발송이력 ✅
 - [x] **Android (Compose) 앱** — Kotlin + Jetpack Compose + Retrofit 클라이언트, `assembleDebug` → APK (JDK 17) · 워치 목록·상세(가격·알림·날씨)·지금폴 · CI `android.yml` ✅ · *남음: FCM 푸시 수신(Firebase 설정 필요)*
-- [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅ · *남음: Amadeus/Travelpayouts 실어댑터, 딜 점수, k3d 멀티팟*
+- [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅
+- [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요 · 남음: Travelpayouts, 딜 점수, k3d 멀티팟*
 - [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅ · *남음: Grafana 대시보드*
 
 ## ADR
