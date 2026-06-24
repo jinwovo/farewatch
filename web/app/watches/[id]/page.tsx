@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { PollResult, PricePoint, Watch } from '@/lib/api';
+import type { CalendarCell, PollResult, PricePoint, Watch } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
+import PriceHeatmap from '@/components/PriceHeatmap';
 
 export default function WatchDetailPage() {
   const params = useParams<{ id: string }>();
@@ -13,15 +14,17 @@ export default function WatchDetailPage() {
 
   const [watch, setWatch] = useState<Watch | null>(null);
   const [prices, setPrices] = useState<PricePoint[]>([]);
+  const [calendar, setCalendar] = useState<CalendarCell[]>([]);
   const [poll, setPoll] = useState<PollResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [w, p] = await Promise.all([api.getWatch(id), api.getPrices(id)]);
+      const [w, p, c] = await Promise.all([api.getWatch(id), api.getPrices(id), api.getCalendar(id)]);
       setWatch(w);
       setPrices(p);
+      setCalendar(c);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -48,6 +51,10 @@ export default function WatchDetailPage() {
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
   const lowest = prices.length ? Math.min(...prices.map((p) => p.amount)) : null;
   const lowestPp = lowest != null ? prices.find((p) => p.amount === lowest) ?? null : null;
+  const timeLabel =
+    watch?.departTimeFrom && watch?.departTimeTo
+      ? ` · ${watch.departTimeFrom.slice(0, 5)}–${watch.departTimeTo.slice(0, 5)}`
+      : '';
 
   return (
     <div className="stack">
@@ -63,7 +70,8 @@ export default function WatchDetailPage() {
               <div className="meta">
                 {watch.departDateFrom}
                 {watch.departDateTo !== watch.departDateFrom ? ` ~ ${watch.departDateTo}` : ''} ·{' '}
-                {watch.tripType === 'ROUND_TRIP' ? '왕복' : '편도'} · {watch.cabin} · 알림 {watch.alertRule}
+                {watch.tripType === 'ROUND_TRIP' ? '왕복' : '편도'} · {watch.cabin} · 성인 {watch.passengers}
+                {timeLabel} · 알림 {watch.alertRule}
               </div>
             </div>
             <button className="btn btn-primary" onClick={doPoll} disabled={busy}>
@@ -98,6 +106,11 @@ export default function WatchDetailPage() {
                 : `이번 폴은 갱신 없음 · 현재 최저 ${fmt(poll.lowestAmount)} ${poll.lowestCurrency ?? ''}`}
             </p>
           )}
+
+          <section className="card">
+            <h3 className="card-title">날짜별 최저가</h3>
+            <PriceHeatmap cells={calendar} />
+          </section>
 
           <section className="card">
             <h3 className="card-title">가격 추이</h3>

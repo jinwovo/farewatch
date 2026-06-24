@@ -5,6 +5,18 @@ export type TripType = 'ONE_WAY' | 'ROUND_TRIP';
 export type Cabin = 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
 export type AlertRule = 'NEW_LOW' | 'BELOW_THRESHOLD' | 'DROP_PCT';
 
+export interface Airport {
+  iata: string;
+  name: string;
+  municipality: string | null;
+  country: string;
+  large: boolean;
+}
+
+export interface NearbyAirport extends Airport {
+  distanceKm: number;
+}
+
 export interface Watch {
   id: string;
   userRef: string;
@@ -15,6 +27,8 @@ export interface Watch {
   departDateTo: string;
   returnDateFrom?: string | null;
   returnDateTo?: string | null;
+  departTimeFrom?: string | null;
+  departTimeTo?: string | null;
   passengers: number;
   cabin: Cabin;
   currency: string;
@@ -48,6 +62,12 @@ export interface PollResult {
   newLow: boolean;
 }
 
+export interface CalendarCell {
+  date: string;
+  lowestAmount: number;
+  currency: string;
+}
+
 export interface CreateWatchInput {
   userRef: string;
   origin: string;
@@ -57,6 +77,8 @@ export interface CreateWatchInput {
   departDateTo: string;
   returnDateFrom?: string;
   returnDateTo?: string;
+  departTimeFrom?: string;
+  departTimeTo?: string;
   passengers?: number;
   cabin?: Cabin;
   currency?: string;
@@ -73,6 +95,10 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  searchAirports: (q: string): Promise<Airport[]> =>
+    fetch(`/api/airports?q=${encodeURIComponent(q)}`, { cache: 'no-store' }).then((r) => unwrap<Airport[]>(r)),
+  nearbyAirports: (iata: string): Promise<NearbyAirport[]> =>
+    fetch(`/api/airports/${iata}/nearby?limit=5`, { cache: 'no-store' }).then((r) => unwrap<NearbyAirport[]>(r)),
   listWatches: (userRef?: string): Promise<Watch[]> =>
     fetch(`/api/watches${userRef ? `?userRef=${encodeURIComponent(userRef)}` : ''}`, { cache: 'no-store' })
       .then((r) => unwrap<Watch[]>(r)),
@@ -90,4 +116,6 @@ export const api = {
     fetch(`/api/watches/${id}/poll`, { method: 'POST' }).then((r) => unwrap<PollResult>(r)),
   getPrices: (id: string): Promise<PricePoint[]> =>
     fetch(`/api/watches/${id}/prices`, { cache: 'no-store' }).then((r) => unwrap<PricePoint[]>(r)),
+  getCalendar: (id: string): Promise<CalendarCell[]> =>
+    fetch(`/api/watches/${id}/calendar`, { cache: 'no-store' }).then((r) => unwrap<CalendarCell[]>(r)),
 };
