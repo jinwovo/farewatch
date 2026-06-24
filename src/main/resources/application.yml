@@ -14,6 +14,10 @@ spring:
         format_sql: false
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6381}
 
 server:
   port: ${SERVER_PORT:8101}
@@ -27,3 +31,11 @@ management:
     health:
       probes:
         enabled: true
+
+# Distributed price-watch sweep (P2): runs hourly, guarded by a Redis lock so only
+# one instance polls each due watch. The scheduled trigger defaults to hourly.
+farewatch:
+  sweep:
+    interval-ms: ${SWEEP_INTERVAL_MS:3600000}
+    initial-delay-ms: ${SWEEP_INITIAL_DELAY_MS:3600000}
+    lock-ttl-ms: ${SWEEP_LOCK_TTL_MS:300000}

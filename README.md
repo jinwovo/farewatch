@@ -43,7 +43,7 @@ flowchart LR
 ## 검증 (Verification)
 > 말이 아니라 실행으로 증명 — 채워지는 중 (로드맵 참고)
 
-- [ ] 2개 인스턴스 동시 구동 시 **중복 폴링 0** (ShedLock 통합 테스트)
+- [x] 다른 인스턴스가 락 보유 시 **중복 폴링 0** (Redis 분산락 통합 테스트)
 - [ ] 소스 레이트리밋 초과 시 토큰버킷이 막고 서킷브레이커가 폴백
 - [ ] 같은 최저가 하락에 대해 **알림 1건만** 발송 (dedup 테스트)
 - [ ] 1만 워치 스윕 처리량/지연 (k6)
@@ -55,7 +55,7 @@ flowchart LR
 |---|---|
 | 언어/프레임워크 | Java 21 · Spring Boot 4.1 (Jackson 3) · Gradle |
 | DB | PostgreSQL 16 + Flyway · `ddl-auto: none` · `open-in-view: false` · `price_point` 시계열 |
-| 스케줄/락 | ShedLock (Redis) → Redis Streams 샤딩 *(P2/P4)* |
+| 스케줄/락 | `@Scheduled` 매시간 + **Redis 분산락**(`SET NX PX` + Lua release) → Redis Streams 샤딩 *(P2 / P4)* |
 | 회복탄력성 | 토큰버킷 레이트리밋 · resilience4j 서킷브레이커 *(P4)* |
 | 알림 | FCM 푸시 · Email · `dedup_key` 멱등 + 재시도 *(P3)* |
 | 외부 소스 | Amadeus · Travelpayouts · LCC 스크래퍼(Playwright) · Open-Meteo 날씨 |
@@ -105,7 +105,7 @@ cd web && npm install && npm run dev
 
 - [x] **P0** 스캐폴드 — Boot 4.1, PostgreSQL, Flyway 스키마, Testcontainers, CI, ADR
 - [x] **P1** 도메인 + 소스추상화 — 워치 CRUD, `FarePriceProvider`(Simulator), 가격이력 시계열, 웹(Next.js 목록·생성·가격차트)
-- [ ] **P2** 분산 스케줄 — 시간당 스윕 + ShedLock, "2인스턴스 중복폴링 0" 테스트, 변화감지 ⭐
+- [x] **P2** 분산 스케줄 — 시간당 스윕 + **Redis 분산락**, "락 보유 중 중복폴링 0" 테스트, 변화감지 → `price_alert`(dedup_key 멱등) ⭐
 - [ ] **P3** 알림 — Notifier 멱등 dedup + 재시도, FCM 푸시 + Email, Android(Compose) 앱
 - [ ] **P4** 스케일 + 인텔리전스 — Redis Streams 샤딩, 토큰버킷 + 서킷브레이커, k6 1만 워치, Amadeus/Travelpayouts/LCC 스크래퍼, 딜 점수·유연날짜 히트맵
 - [ ] **P5** 날씨 + 폴리시 — Open-Meteo 평년값 → D-16 실예보 크로스오버, 메트릭/Grafana, 데모GIF·Android 녹화

@@ -33,10 +33,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
+	// --- scheduling + distributed lock (P2): Redis backs the hand-rolled sweep lock (SET NX PX + Lua release) ---
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
 	// --- enabled in later phases (kept visible so the plan is legible) ---
 	// P1: spring-boot-starter-webflux            // WebClient for FarePriceProvider adapters (Amadeus/Travelpayouts)
-	// P2: spring-boot-starter-data-redis         // ShedLock lock store + rate-limit buckets
-	//     net.javacrumbs.shedlock:shedlock-spring + shedlock-provider-redis-spring
 	// P4: resilience4j                           // per-source circuit breaker; Redis Streams job sharding
 
 	// --- test ---

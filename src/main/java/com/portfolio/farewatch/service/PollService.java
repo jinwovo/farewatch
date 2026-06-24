@@ -34,13 +34,15 @@ public class PollService {
 	private final PricePointRepository pricePoints;
 	private final FareSourceRepository fareSources;
 	private final FareAggregator aggregator;
+	private final AlertService alertService;
 
 	public PollService(WatchRepository watches, PricePointRepository pricePoints,
-			FareSourceRepository fareSources, FareAggregator aggregator) {
+			FareSourceRepository fareSources, FareAggregator aggregator, AlertService alertService) {
 		this.watches = watches;
 		this.pricePoints = pricePoints;
 		this.fareSources = fareSources;
 		this.aggregator = aggregator;
+		this.alertService = alertService;
 	}
 
 	@Transactional
@@ -72,6 +74,9 @@ public class PollService {
 				.orElse(null);
 		boolean newLow = lowest != null
 				&& (lowestBefore == null || lowest.getAmount().compareTo(lowestBefore) < 0);
+
+		// P2: persist a price_alert if this poll triggered the watch's rule (idempotent via dedup_key).
+		alertService.evaluate(w, lowest, lowestBefore);
 
 		List<PricePointResponse> newPrices = saved.stream().map(PricePointResponse::from).toList();
 		return new PollResultResponse(

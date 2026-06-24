@@ -18,8 +18,17 @@ services:
       timeout: 3s
       retries: 10
 
-# Redis (fw-redis :6381) arrives in P2 with ShedLock; kept out of P0 to keep the
-# scaffold to exactly what boots today.
+  redis:
+    image: redis:7-alpine
+    container_name: fw-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6381:6379"          # host 6381 (registry-allocated) -> container 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   fw-pgdata:
