@@ -85,12 +85,26 @@ docker compose up -d
 
 # 3) 헬스체크
 curl http://localhost:8101/actuator/health
+
+# 4) 웹 (포트 3005 · /api/* → :8101 프록시 · 의존성 없는 SVG 차트)
+cd web && npm install && npm run dev
 ```
+
+### API (P1)
+
+| 메서드 · 경로 | 설명 |
+|---|---|
+| `POST /api/watches` | 워치 생성 (노선·유연 날짜·알림 규칙) |
+| `GET /api/watches` | 목록 (`?userRef=` 필터) |
+| `GET /api/watches/{id}` | 단건 |
+| `DELETE /api/watches/{id}` | 삭제 |
+| `POST /api/watches/{id}/poll` | 지금 폴 — 소스별 최저가 적재 + `newLow` 판정 |
+| `GET /api/watches/{id}/prices` | 가격 이력(시계열) |
 
 ## 로드맵
 
 - [x] **P0** 스캐폴드 — Boot 4.1, PostgreSQL, Flyway 스키마, Testcontainers, CI, ADR
-- [ ] **P1** 도메인 + 소스추상화 — 워치 CRUD, `FarePriceProvider`(Simulator), 가격이력 시계열, 웹(목록·가격차트)
+- [x] **P1** 도메인 + 소스추상화 — 워치 CRUD, `FarePriceProvider`(Simulator), 가격이력 시계열, 웹(Next.js 목록·생성·가격차트)
 - [ ] **P2** 분산 스케줄 — 시간당 스윕 + ShedLock, "2인스턴스 중복폴링 0" 테스트, 변화감지 ⭐
 - [ ] **P3** 알림 — Notifier 멱등 dedup + 재시도, FCM 푸시 + Email, Android(Compose) 앱
 - [ ] **P4** 스케일 + 인텔리전스 — Redis Streams 샤딩, 토큰버킷 + 서킷브레이커, k6 1만 워치, Amadeus/Travelpayouts/LCC 스크래퍼, 딜 점수·유연날짜 히트맵
