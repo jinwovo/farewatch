@@ -14,10 +14,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Loads airport reference data into the {@code airport} table on first startup
- * (from classpath:data/airports.tsv — OurAirports, public domain). Idempotent:
- * skips if the table already has rows. Uses a JDBC batch insert so seeding ~3k
- * rows is sub-second even on a fresh Testcontainers database.
+ * Loads airport reference data on first startup (classpath:data/airports.tsv —
+ * OurAirports, public domain) and applies Korean search aliases
+ * (classpath:data/airports-ko.tsv) so "서울"/"도쿄" match. Both steps are
+ * idempotent and run via JDBC batch, so they are sub-second on a fresh database.
  */
 @Component
 public class AirportSeeder implements ApplicationRunner {
@@ -32,13 +32,17 @@ public class AirportSeeder implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) throws Exception {
+		seedAirports();
+		applyAliases();
+	}
+
+	private void seedAirports() throws Exception {
 		Integer existing = jdbc.queryForObject("select count(*) from airport", Integer.class);
 		if (existing != null && existing > 0) {
 			return;
 		}
 		List<Object[]> batch = new ArrayList<>();
-		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-				new ClassPathResource("data/airports.tsv").getInputStream(), StandardCharsets.UTF_8))) {
+		try (BufferedReader reader = open("data/airports.tsv")) {
 			reader.readLine(); // header
 			String line;
 			while ((line = reader.readLine()) != null) {
@@ -47,13 +51,8 @@ public class AirportSeeder implements ApplicationRunner {
 					continue;
 				}
 				batch.add(new Object[] {
-						f[0],                                   // iata
-						f[2],                                   // name
-						f[3].isBlank() ? null : f[3],           // municipality
-						f[4],                                   // country
-						Double.parseDouble(f[5]),               // lat
-						Double.parseDouble(f[6]),               // lon
-						"L".equals(f[1])                        // large
+						f[0], f[2], f[3].isBlank() ? null : f[3], f[4],
+						Double.parseDouble(f[5]), Double.parseDouble(f[6]), "L".equals(f[1])
 				});
 			}
 		}
@@ -61,5 +60,34 @@ public class AirportSeeder implements ApplicationRunner {
 				"insert into airport (iata, name, municipality, country, lat, lon, large) values (?, ?, ?, ?, ?, ?, ?)",
 				batch);
 		log.info("seeded {} airports", batch.size());
+	}
+
+	private void applyAliases() throws Exception {
+		Integer withAliases = jdbc.queryForObject("select count(*) from airport where aliases is not null", Integer.class);
+		if (withAliases != null && withAliases > 0) {
+			return;
+		}
+		List<Object[]> batch = new ArrayList<>();
+		try (BufferedReader reader = open("data/airports-ko.tsv")) {
+			reader.readLine(); // header
+			String line;
+			while ((line = reader.readLine()) != null) {
+				int tab = line.indexOf('\t');
+				if (tab <= 0) {
+					continue;
+				}
+				batch.add(new Object[] { line.substring(tab + 1).trim(), line.substring(0, tab).trim() });
+			}
+		}
+		int[] updated = jdbc.batchUpdate("update airport set aliases = ? where iata = ?", batch);
+		int hit = 0;
+		for (int u : updated) {
+			hit += u;
+		}
+		log.info("applied Korean aliases to {} airports", hit);
+	}
+
+	private BufferedReader open(String path) throws Exception {
+		return new BufferedReader(new InputStreamReader(new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8));
 	}
 }

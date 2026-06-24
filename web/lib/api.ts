@@ -29,6 +29,8 @@ export interface Watch {
   returnDateTo?: string | null;
   departTimeFrom?: string | null;
   departTimeTo?: string | null;
+  returnTimeFrom?: string | null;
+  returnTimeTo?: string | null;
   passengers: number;
   cabin: Cabin;
   currency: string;
@@ -79,6 +81,8 @@ export interface CreateWatchInput {
   returnDateTo?: string;
   departTimeFrom?: string;
   departTimeTo?: string;
+  returnTimeFrom?: string;
+  returnTimeTo?: string;
   passengers?: number;
   cabin?: Cabin;
   currency?: string;

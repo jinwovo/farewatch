@@ -24,6 +24,8 @@ public record CreateWatchRequest(
 		LocalDate returnDateTo,
 		LocalTime departTimeFrom,
 		LocalTime departTimeTo,
+		LocalTime returnTimeFrom,
+		LocalTime returnTimeTo,
 		@Min(1) Integer passengers,
 		Cabin cabin,
 		String currency,

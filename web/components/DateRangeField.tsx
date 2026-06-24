@@ -15,20 +15,23 @@ export default function DateRangeField({
   from,
   to,
   onChange,
+  roundTrip = false,
 }: {
   from: string;
   to: string;
   onChange: (from: string, to: string) => void;
+  roundTrip?: boolean;
 }) {
   const now = new Date();
   const [vy, setVy] = useState(now.getFullYear());
   const [vm, setVm] = useState(now.getMonth());
   const [flexible, setFlexible] = useState(to !== '' && to !== from);
   const today = todayStr();
+  const range = roundTrip || flexible; // round trip is always a depart→return range
 
   function clickDay(ds: string) {
     if (ds < today) return;
-    if (!flexible) {
+    if (!range) {
       onChange(ds, ds);
       return;
     }
@@ -75,7 +78,7 @@ export default function DateRangeField({
             const ds = fmt(y, m, d);
             const past = ds < today;
             const sel = ds === from || ds === to;
-            const inRange = flexible && !!from && !!to && ds > from && ds < to;
+            const inRange = range && !!from && !!to && ds > from && ds < to;
             const cls = ['cal-cell'];
             if (past) cls.push('past');
             if (sel) cls.push('sel');
@@ -93,26 +96,42 @@ export default function DateRangeField({
 
   const ny = vm === 11 ? vy + 1 : vy;
   const nm = (vm + 1) % 12;
-  const label = from ? (to && to !== from ? `${from} ~ ${to}` : from) : '날짜를 선택하세요';
+  const label = roundTrip
+    ? from
+      ? to
+        ? `${from} → ${to}`
+        : `${from} → 오는 날 선택`
+      : '가는 날을 선택하세요'
+    : from
+      ? to && to !== from
+        ? `${from} ~ ${to}`
+        : from
+      : '날짜를 선택하세요';
 
   return (
     <div className="daterange">
       <div className="cal-head">
-        <div className="cal-tabs">
-          <button
-            type="button"
-            className={!flexible ? 'active' : ''}
-            onClick={() => {
-              setFlexible(false);
-              if (from) onChange(from, from);
-            }}
-          >
-            특정 날짜
-          </button>
-          <button type="button" className={flexible ? 'active' : ''} onClick={() => setFlexible(true)}>
-            날짜 조정 가능
-          </button>
-        </div>
+        {roundTrip ? (
+          <div className="cal-tabs">
+            <button type="button" className="active" disabled>가는 날 → 오는 날</button>
+          </div>
+        ) : (
+          <div className="cal-tabs">
+            <button
+              type="button"
+              className={!flexible ? 'active' : ''}
+              onClick={() => {
+                setFlexible(false);
+                if (from) onChange(from, from);
+              }}
+            >
+              특정 날짜
+            </button>
+            <button type="button" className={flexible ? 'active' : ''} onClick={() => setFlexible(true)}>
+              날짜 조정 가능
+            </button>
+          </div>
+        )}
         <div className="cal-sel">{label}</div>
       </div>
       <div className="cal-body">
@@ -121,7 +140,13 @@ export default function DateRangeField({
         <Month y={ny} m={nm} />
         <button type="button" className="cal-nav right" onClick={() => shift(1)} aria-label="다음 달">›</button>
       </div>
-      {flexible && <div className="cal-hint">시작일을 누른 뒤 종료일을 누르면 유연한 날짜 범위가 됩니다.</div>}
+      {range && (
+        <div className="cal-hint">
+          {roundTrip
+            ? '가는 날을 누른 뒤 오는 날을 누르세요.'
+            : '시작일을 누른 뒤 종료일을 누르면 유연한 날짜 범위가 됩니다.'}
+        </div>
+      )}
     </div>
   );
 }

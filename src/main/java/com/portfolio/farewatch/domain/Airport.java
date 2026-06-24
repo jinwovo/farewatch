@@ -35,6 +35,10 @@ public class Airport {
 	@Column(nullable = false)
 	private boolean large;
 
+	/** Search keywords (Korean city/airport names etc.) so "서울" matches ICN/GMP. */
+	@Column(columnDefinition = "text")
+	private String aliases;
+
 	protected Airport() {
 	}
 

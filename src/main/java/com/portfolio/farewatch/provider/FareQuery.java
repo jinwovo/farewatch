@@ -17,6 +17,8 @@ public record FareQuery(
 		LocalDate returnDateTo,
 		LocalTime departTimeFrom,
 		LocalTime departTimeTo,
+		LocalTime returnTimeFrom,
+		LocalTime returnTimeTo,
 		int passengers,
 		Cabin cabin,
 		String currency) {
@@ -27,6 +29,7 @@ public record FareQuery(
 				w.getDepartDateFrom(), w.getDepartDateTo(),
 				w.getReturnDateFrom(), w.getReturnDateTo(),
 				w.getDepartTimeFrom(), w.getDepartTimeTo(),
+				w.getReturnTimeFrom(), w.getReturnTimeTo(),
 				w.getPassengers(), w.getCabin(), w.getCurrency());
 	}
 }

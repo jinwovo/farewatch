@@ -40,6 +40,21 @@ class AirportApiTest {
 	}
 
 	@Test
+	void search_by_korean_alias_returns_seoul_airports() throws Exception {
+		mockMvc.perform(get("/api/airports").param("q", "서울"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[?(@.iata=='ICN')]").exists())
+				.andExpect(jsonPath("$[?(@.iata=='GMP')]").exists());
+	}
+
+	@Test
+	void search_by_korean_alias_works_worldwide() throws Exception {
+		mockMvc.perform(get("/api/airports").param("q", "프랑크푸르트"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[?(@.iata=='FRA')]").exists());
+	}
+
+	@Test
 	void nearby_returns_airports_with_distance() throws Exception {
 		mockMvc.perform(get("/api/airports/{iata}/nearby", "ICN").param("limit", "5"))
 				.andExpect(status().isOk())

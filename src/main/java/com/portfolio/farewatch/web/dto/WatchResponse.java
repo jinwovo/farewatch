@@ -21,6 +21,8 @@ public record WatchResponse(
 		LocalDate returnDateTo,
 		LocalTime departTimeFrom,
 		LocalTime departTimeTo,
+		LocalTime returnTimeFrom,
+		LocalTime returnTimeTo,
 		int passengers,
 		Cabin cabin,
 		String currency,
@@ -35,7 +37,7 @@ public record WatchResponse(
 		return new WatchResponse(
 				w.getId(), w.getUserRef(), w.getOrigin(), w.getDestination(), w.getTripType(),
 				w.getDepartDateFrom(), w.getDepartDateTo(), w.getReturnDateFrom(), w.getReturnDateTo(),
-				w.getDepartTimeFrom(), w.getDepartTimeTo(),
+				w.getDepartTimeFrom(), w.getDepartTimeTo(), w.getReturnTimeFrom(), w.getReturnTimeTo(),
 				w.getPassengers(), w.getCabin(), w.getCurrency(), w.getAlertRule(),
 				w.isActive(), w.getPollIntervalMin(), w.getLastPolledAt(), w.getNextPollAt(), w.getCreatedAt());
 	}

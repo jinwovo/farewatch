@@ -49,12 +49,17 @@ export default function WatchDetailPage() {
   }
 
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
+  const fmtT = (t?: string | null) => (t ? t.slice(0, 5) : '');
   const lowest = prices.length ? Math.min(...prices.map((p) => p.amount)) : null;
   const lowestPp = lowest != null ? prices.find((p) => p.amount === lowest) ?? null : null;
-  const timeLabel =
-    watch?.departTimeFrom && watch?.departTimeTo
-      ? ` · ${watch.departTimeFrom.slice(0, 5)}–${watch.departTimeTo.slice(0, 5)}`
-      : '';
+  const isRound = watch?.tripType === 'ROUND_TRIP';
+  const dateStr = watch
+    ? isRound && watch.returnDateFrom
+      ? `${watch.departDateFrom} → ${watch.returnDateFrom}`
+      : `${watch.departDateFrom}${watch.departDateTo !== watch.departDateFrom ? ` ~ ${watch.departDateTo}` : ''}`
+    : '';
+  const outTime = watch?.departTimeFrom && watch?.departTimeTo ? ` · 가는편 ${fmtT(watch.departTimeFrom)}–${fmtT(watch.departTimeTo)}` : '';
+  const retTime = isRound && watch?.returnTimeFrom && watch?.returnTimeTo ? ` · 오는편 ${fmtT(watch.returnTimeFrom)}–${fmtT(watch.returnTimeTo)}` : '';
 
   return (
     <div className="stack">
@@ -68,10 +73,9 @@ export default function WatchDetailPage() {
                 {watch.origin} <span className="arrow">→</span> {watch.destination}
               </h1>
               <div className="meta">
-                {watch.departDateFrom}
-                {watch.departDateTo !== watch.departDateFrom ? ` ~ ${watch.departDateTo}` : ''} ·{' '}
-                {watch.tripType === 'ROUND_TRIP' ? '왕복' : '편도'} · {watch.cabin} · 성인 {watch.passengers}
-                {timeLabel} · 알림 {watch.alertRule}
+                {dateStr} · {isRound ? '왕복' : '편도'} · {watch.cabin} · 성인 {watch.passengers}
+                {outTime}
+                {retTime} · 알림 {watch.alertRule}
               </div>
             </div>
             <button className="btn btn-primary" onClick={doPoll} disabled={busy}>

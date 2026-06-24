@@ -59,6 +59,12 @@ public class Watch {
 	@Column(name = "depart_time_to")
 	private LocalTime departTimeTo;
 
+	@Column(name = "return_time_from")
+	private LocalTime returnTimeFrom;
+
+	@Column(name = "return_time_to")
+	private LocalTime returnTimeTo;
+
 	@Column(nullable = false)
 	private int passengers = 1;
 
@@ -184,6 +190,22 @@ public class Watch {
 
 	public void setDepartTimeTo(LocalTime departTimeTo) {
 		this.departTimeTo = departTimeTo;
+	}
+
+	public LocalTime getReturnTimeFrom() {
+		return returnTimeFrom;
+	}
+
+	public void setReturnTimeFrom(LocalTime returnTimeFrom) {
+		this.returnTimeFrom = returnTimeFrom;
+	}
+
+	public LocalTime getReturnTimeTo() {
+		return returnTimeTo;
+	}
+
+	public void setReturnTimeTo(LocalTime returnTimeTo) {
+		this.returnTimeTo = returnTimeTo;
 	}
 
 	public int getPassengers() {

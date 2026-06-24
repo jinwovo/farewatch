@@ -40,6 +40,8 @@ public class WatchService {
 		w.setReturnDateTo(r.returnDateTo());
 		w.setDepartTimeFrom(r.departTimeFrom());
 		w.setDepartTimeTo(r.departTimeTo());
+		w.setReturnTimeFrom(r.returnTimeFrom());
+		w.setReturnTimeTo(r.returnTimeTo());
 		if (r.passengers() != null) {
 			w.setPassengers(r.passengers());
 		}

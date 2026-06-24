@@ -16,10 +16,24 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
   const [to, setTo] = useState('');
   const [timeFrom, setTimeFrom] = useState('');
   const [timeTo, setTimeTo] = useState('');
+  const [retTimeFrom, setRetTimeFrom] = useState('');
+  const [retTimeTo, setRetTimeTo] = useState('');
   const [passengers, setPassengers] = useState(1);
   const [cabin, setCabin] = useState<Cabin>('ECONOMY');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const round = tripType === 'ROUND_TRIP';
+
+  function changeTrip(t: TripType) {
+    setTripType(t);
+    setFrom('');
+    setTo('');
+    if (t === 'ONE_WAY') {
+      setRetTimeFrom('');
+      setRetTimeTo('');
+    }
+  }
 
   function swap() {
     setOrigin(dest);
@@ -31,6 +45,10 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
       setErr('출발·도착 공항과 가는 날짜를 선택하세요.');
       return;
     }
+    if (round && !to) {
+      setErr('오는 날짜도 선택하세요.');
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -40,9 +58,13 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
         destination: dest.iata,
         tripType,
         departDateFrom: from,
-        departDateTo: to || from,
+        departDateTo: round ? from : to || from,
+        returnDateFrom: round ? to : undefined,
+        returnDateTo: round ? to : undefined,
         departTimeFrom: timeFrom || undefined,
         departTimeTo: timeTo || undefined,
+        returnTimeFrom: round ? retTimeFrom || undefined : undefined,
+        returnTimeTo: round ? retTimeTo || undefined : undefined,
         passengers,
         cabin,
       });
@@ -64,10 +86,10 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
         <button type="button" className="swap" onClick={swap} aria-label="출도착 바꾸기">⇄</button>
         <AirportField label="도착지" value={dest} onSelect={setDest} placeholder="도쿄 NRT" />
         <div className="sb-trip">
-          <button type="button" className={tripType === 'ONE_WAY' ? 'active' : ''} onClick={() => setTripType('ONE_WAY')}>
+          <button type="button" className={!round ? 'active' : ''} onClick={() => changeTrip('ONE_WAY')}>
             편도
           </button>
-          <button type="button" className={tripType === 'ROUND_TRIP' ? 'active' : ''} onClick={() => setTripType('ROUND_TRIP')}>
+          <button type="button" className={round ? 'active' : ''} onClick={() => changeTrip('ROUND_TRIP')}>
             왕복
           </button>
         </div>
@@ -76,6 +98,7 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
       <DateRangeField
         from={from}
         to={to}
+        roundTrip={round}
         onChange={(f, t) => {
           setFrom(f);
           setTo(t);
@@ -84,7 +107,7 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
 
       <div className="sb-row2">
         <div className="sb-field">
-          <div className="seg-label">출발 시간대</div>
+          <div className="seg-label">{round ? '가는 편 출발 시간대' : '출발 시간대'}</div>
           <TimeField
             from={timeFrom}
             to={timeTo}
@@ -94,6 +117,19 @@ export default function SearchBar({ onCreated }: { onCreated: () => void }) {
             }}
           />
         </div>
+        {round && (
+          <div className="sb-field">
+            <div className="seg-label">오는 편 출발 시간대</div>
+            <TimeField
+              from={retTimeFrom}
+              to={retTimeTo}
+              onChange={(f, t) => {
+                setRetTimeFrom(f);
+                setRetTimeTo(t);
+              }}
+            />
+          </div>
+        )}
         <div className="sb-field">
           <div className="seg-label">여행자 · 좌석</div>
           <PaxCabinField
