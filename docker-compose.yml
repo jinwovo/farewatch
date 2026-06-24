@@ -1,0 +1,25 @@
+name: farewatch
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fw-postgres
+    environment:
+      POSTGRES_DB: farewatch
+      POSTGRES_USER: farewatch
+      POSTGRES_PASSWORD: farewatch
+    ports:
+      - "5435:5432"          # host 5435 (registry-allocated) -> container 5432
+    volumes:
+      - fw-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U farewatch -d farewatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# Redis (fw-redis :6381) arrives in P2 with ShedLock; kept out of P0 to keep the
+# scaffold to exactly what boots today.
+
+volumes:
+  fw-pgdata:
