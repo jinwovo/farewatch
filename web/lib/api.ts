@@ -89,6 +89,16 @@ export interface Alert {
   notifications: NotificationDelivery[];
 }
 
+export type WeatherSource = 'FORECAST' | 'CLIMATE_NORMAL';
+
+export interface WeatherEstimate {
+  date: string;
+  tempMaxC: number | null;
+  tempMinC: number | null;
+  precipProbPct: number | null;
+  source: WeatherSource;
+}
+
 export interface CreateWatchInput {
   userRef: string;
   origin: string;
@@ -143,4 +153,6 @@ export const api = {
     fetch(`/api/watches/${id}/calendar`, { cache: 'no-store' }).then((r) => unwrap<CalendarCell[]>(r)),
   getAlerts: (id: string): Promise<Alert[]> =>
     fetch(`/api/watches/${id}/alerts`, { cache: 'no-store' }).then((r) => unwrap<Alert[]>(r)),
+  getWeather: (id: string): Promise<WeatherEstimate[]> =>
+    fetch(`/api/watches/${id}/weather`, { cache: 'no-store' }).then((r) => unwrap<WeatherEstimate[]>(r)),
 };

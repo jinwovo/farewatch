@@ -221,3 +221,14 @@ input:focus, select:focus { outline: none; border: 2px solid var(--blue-deep); p
 .chan.sent { background: var(--success-bg); color: var(--success-text); }
 .chan.failed { background: #fde8e8; color: var(--error); }
 .chan.pending { background: var(--surface-soft); color: var(--steel); }
+
+/* destination weather */
+.weather { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.wx-day { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }
+.wx-date { font-size: 12px; font-weight: 600; color: var(--steel); }
+.wx-temp { font-size: 20px; font-weight: 700; }
+.wx-min { font-size: 14px; font-weight: 500; color: var(--stone); }
+.wx-rain { font-size: 12.5px; color: var(--blue-deep); }
+.wx-src { align-self: flex-start; font-size: 11px; font-weight: 700; border-radius: 9999px; padding: 2px 8px; margin-top: 2px; }
+.wx-src.fc { background: var(--blue-200); color: var(--blue-deep); }
+.wx-src.cn { background: var(--surface-soft); color: var(--steel); }

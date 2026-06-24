@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Alert, CalendarCell, PollResult, PricePoint, Watch } from '@/lib/api';
+import type { Alert, CalendarCell, PollResult, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
 import PriceHeatmap from '@/components/PriceHeatmap';
 
@@ -16,22 +16,25 @@ export default function WatchDetailPage() {
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [calendar, setCalendar] = useState<CalendarCell[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [weather, setWeather] = useState<WeatherEstimate[]>([]);
   const [poll, setPoll] = useState<PollResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [w, p, c, al] = await Promise.all([
+      const [w, p, c, al, wx] = await Promise.all([
         api.getWatch(id),
         api.getPrices(id),
         api.getCalendar(id),
         api.getAlerts(id),
+        api.getWeather(id),
       ]);
       setWatch(w);
       setPrices(p);
       setCalendar(c);
       setAlerts(al);
+      setWeather(wx);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -142,6 +145,27 @@ export default function WatchDetailPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {weather.length > 0 && (
+            <section className="card">
+              <h3 className="card-title">도착지 날씨 — {watch.destination}</h3>
+              <div className="weather">
+                {weather.map((d) => (
+                  <div key={d.date} className="wx-day">
+                    <span className="wx-date">{d.date.slice(5)}</span>
+                    <span className="wx-temp">
+                      {d.tempMaxC != null ? `${Math.round(d.tempMaxC)}°` : '—'}
+                      <span className="wx-min"> / {d.tempMinC != null ? `${Math.round(d.tempMinC)}°` : '—'}</span>
+                    </span>
+                    <span className="wx-rain">☔ {d.precipProbPct ?? '—'}%</span>
+                    <span className={`wx-src ${d.source === 'FORECAST' ? 'fc' : 'cn'}`}>
+                      {d.source === 'FORECAST' ? '예보' : '평년값'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
