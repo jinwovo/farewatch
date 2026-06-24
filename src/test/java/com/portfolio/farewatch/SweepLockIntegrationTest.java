@@ -13,6 +13,7 @@ import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
 import com.portfolio.farewatch.service.FareSweepService;
 import com.portfolio.farewatch.service.FareSweepService.SweepResult;
+import com.portfolio.farewatch.worker.PollWorker;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -60,6 +61,8 @@ class SweepLockIntegrationTest {
 	PricePointRepository pricePoints;
 	@Autowired
 	PriceAlertRepository alerts;
+	@Autowired
+	PollWorker worker;
 
 	@Test
 	void redis_lock_is_mutually_exclusive() {
@@ -83,21 +86,23 @@ class SweepLockIntegrationTest {
 	}
 
 	@Test
-	void sweep_does_not_double_poll_while_another_instance_holds_the_lock() {
+	void sweep_does_not_enqueue_while_another_instance_holds_the_lock() {
 		Watch w = watches.save(dueWatch());
 
 		// Simulate a second instance currently holding the sweep lock.
 		assertTrue(lock.tryLock(FareSweepService.LOCK_KEY, "instance-B", Duration.ofSeconds(60)));
 
-		SweepResult skipped = sweep.run(); // this instance tries while B holds the lock
-		assertFalse(skipped.ran());
-		assertTrue(pricePoints.findByWatch_IdOrderByObservedAtAsc(w.getId()).isEmpty(), "must not double-poll");
+		SweepResult blocked = sweep.run(); // this instance tries while B holds the lock
+		assertFalse(blocked.ran());
+		assertEquals(0, worker.drain(10)); // nothing enqueued → a worker finds nothing
+		assertTrue(pricePoints.findByWatch_IdOrderByObservedAtAsc(w.getId()).isEmpty(), "must not double-enqueue");
 
 		assertTrue(lock.unlock(FareSweepService.LOCK_KEY, "instance-B"));
 
-		SweepResult ran = sweep.run(); // now this instance wins the lock
+		SweepResult ran = sweep.run(); // now this instance wins the lock and enqueues
 		assertTrue(ran.ran());
-		assertEquals(1, ran.polled());
+		assertEquals(1, ran.enqueued());
+		assertEquals(1, worker.drain(10)); // a worker claims and polls the one job
 		assertEquals(1, pricePoints.findByWatch_IdOrderByObservedAtAsc(w.getId()).size(), "polled exactly once");
 		assertEquals(1, alerts.findByWatch_IdOrderByCreatedAtDesc(w.getId()).size(), "first low fires a NEW_LOW alert");
 	}

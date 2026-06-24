@@ -2,6 +2,7 @@ package com.portfolio.farewatch.service;
 
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.lock.RedisDistributedLock;
+import com.portfolio.farewatch.queue.SweepQueue;
 import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.PricePointRepository.VolStat;
 import com.portfolio.farewatch.repo.WatchRepository;
@@ -16,11 +17,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * One sweep over the due watches, guarded by a Redis distributed lock (no
- * double-poll across instances). Adaptive: when more watches are due than the
- * per-tick budget allows, it polls the highest-value ones first (see {@link PollScorer})
- * rather than everything — the rest rise in score as they go stale and get picked up
- * next tick. Each watch is polled in its own transaction via {@link PollService}.
+ * Each tick: select the highest-value due watches (up to the per-tick budget) and
+ * ENQUEUE them onto the sharded queue for the worker pool. Lock-guarded so only one
+ * instance enqueues per tick (no double-enqueue); the consumer group then guarantees
+ * each job is polled by exactly one worker. Adaptive: when more watches are due than
+ * the budget allows, the lower-value ones are deferred and rise in score (staleness)
+ * until a later tick picks them up. See {@link PollScorer}.
  */
 @Service
 public class FareSweepService {
@@ -31,19 +33,19 @@ public class FareSweepService {
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
 	private final PollScorer scorer;
-	private final PollService pollService;
+	private final SweepQueue queue;
 	private final Duration lockTtl;
 	private final int budgetPerTick;
 
 	public FareSweepService(RedisDistributedLock lock, WatchRepository watches, PricePointRepository pricePoints,
-			PollScorer scorer, PollService pollService,
+			PollScorer scorer, SweepQueue queue,
 			@Value("${farewatch.sweep.lock-ttl-ms:300000}") long lockTtlMs,
 			@Value("${farewatch.sweep.budget-per-tick:100}") int budgetPerTick) {
 		this.lock = lock;
 		this.watches = watches;
 		this.pricePoints = pricePoints;
 		this.scorer = scorer;
-		this.pollService = pollService;
+		this.queue = queue;
 		this.lockTtl = Duration.ofMillis(lockTtlMs);
 		this.budgetPerTick = budgetPerTick;
 	}
@@ -51,7 +53,7 @@ public class FareSweepService {
 	public SweepResult run() {
 		String token = UUID.randomUUID().toString();
 		if (!lock.tryLock(LOCK_KEY, token, lockTtl)) {
-			return SweepResult.notRun(); // another instance is sweeping → do NOT double-poll
+			return SweepResult.notRun(); // another instance is enqueuing → no double-enqueue
 		}
 		try {
 			List<Watch> due = watches.findByActiveTrueAndNextPollAtLessThanEqual(Instant.now());
@@ -64,15 +66,15 @@ public class FareSweepService {
 					.comparingDouble((Watch w) -> scorer.score(w, volatility.getOrDefault(w.getId(), 0.0), now))
 					.reversed());
 
-			int polled = 0;
+			int enqueued = 0;
 			for (Watch w : due) {
-				if (polled >= budgetPerTick) {
-					break; // budget spent — remaining due watches wait for the next tick
+				if (enqueued >= budgetPerTick) {
+					break; // budget spent — defer the rest to a later tick
 				}
-				pollService.poll(w.getId());
-				polled++;
+				queue.enqueue(w.getId());
+				enqueued++;
 			}
-			return SweepResult.ran(polled, due.size() - polled);
+			return SweepResult.ran(enqueued, due.size() - enqueued);
 		} finally {
 			lock.unlock(LOCK_KEY, token);
 		}
@@ -90,13 +92,13 @@ public class FareSweepService {
 		return map;
 	}
 
-	public record SweepResult(boolean ran, int polled, int skipped) {
+	public record SweepResult(boolean ran, int enqueued, int deferred) {
 		public static SweepResult notRun() {
 			return new SweepResult(false, 0, 0);
 		}
 
-		public static SweepResult ran(int polled, int skipped) {
-			return new SweepResult(true, polled, skipped);
+		public static SweepResult ran(int enqueued, int deferred) {
+			return new SweepResult(true, enqueued, deferred);
 		}
 	}
 }

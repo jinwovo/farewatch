@@ -9,6 +9,7 @@ import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
 import com.portfolio.farewatch.service.FareSweepService;
 import com.portfolio.farewatch.service.FareSweepService.SweepResult;
+import com.portfolio.farewatch.worker.PollWorker;
 import java.time.Instant;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -45,20 +46,23 @@ class AdaptiveSweepIntegrationTest {
 	@Autowired
 	FareSweepService sweep;
 	@Autowired
+	PollWorker worker;
+	@Autowired
 	WatchRepository watches;
 	@Autowired
 	PricePointRepository pricePoints;
 
 	@Test
-	void sweep_polls_the_highest_value_watch_first_under_budget() {
+	void sweep_enqueues_only_the_highest_value_watch_under_budget() {
 		Watch near = watches.save(dueWatch("ICN", "FUK", LocalDate.now().plusDays(3)));   // departs soon
 		Watch far = watches.save(dueWatch("ICN", "JFK", LocalDate.now().plusDays(300)));  // departs far off
 
 		SweepResult result = sweep.run();
 
 		assertTrue(result.ran());
-		assertEquals(1, result.polled());  // budget = 1
-		assertEquals(1, result.skipped()); // the other due watch is deferred
+		assertEquals(1, result.enqueued()); // budget = 1
+		assertEquals(1, result.deferred()); // the other due watch is deferred
+		worker.drain(10);
 		assertEquals(1, pricePoints.findByWatch_IdOrderByObservedAtAsc(near.getId()).size());
 		assertEquals(0, pricePoints.findByWatch_IdOrderByObservedAtAsc(far.getId()).size());
 	}
