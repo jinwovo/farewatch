@@ -9,9 +9,9 @@
 
 ## 데모 (Demo)
 
-| 워치 만들기 — 공항 자동완성·유연 날짜·시간대 | 워치 상세 — 최저가·날짜별 히트맵·가격추이 |
+| 워치 만들기 — 공항 자동완성·유연 날짜·시간대 | 워치 상세 — 최저가·**알림 내역**·히트맵·추이 |
 |:--:|:--:|
-| ![home](docs/demo/home.png) | ![detail](docs/demo/detail.png) |
+| ![home](docs/demo/home.png) | ![detail](docs/demo/notifications.png) |
 | **공항 자동완성** (근처공항·거리, OurAirports 실데이터) | **유연 날짜 캘린더** (특정/조정가능) |
 | ![autocomplete](docs/demo/autocomplete.png) | ![calendar](docs/demo/calendar.png) |
 | **한국어 검색** (전 세계, Wikidata + 큐레이션) | **왕복** (가는/오는 날 + 가는/오는 시간대) |
@@ -61,7 +61,7 @@ flowchart LR
 - [x] 컨슈머그룹 **샤딩** — 두 워커가 잡 분할, 각 워치 정확히 1회 폴 (QueueShardingIntegrationTest)
 - [x] **토큰버킷** 레이트리밋(버스트→거부) + **서킷브레이커**(직접 구현) 보호
 - [x] 적응형 폴링 — 예산 < due 시 **고가치 워치 우선** 큐잉 (AdaptiveSweepIntegrationTest)
-- [x] 같은 트리거 **중복 알림 방지**(`dedup_key` 멱등) — 발송은 P3
+- [x] 알림 **멀티채널 발송**(이메일·푸시) — 아웃박스 + 재시도→FAILED + dedup (NotificationDispatchTest)
 - [x] 폴 **부하 테스트** — k6 30VU: **~145 polls/s · p95 211ms · 0% 에러** (`load/k6-poll.js`)
 - [ ] 웹 데모 GIF + Android 푸시 수신 화면
 
@@ -122,7 +122,7 @@ cd web && npm install && npm run dev
 - [x] **P0** 스캐폴드 — Boot 4.1, PostgreSQL, Flyway 스키마, Testcontainers, CI, ADR
 - [x] **P1** 도메인 + 소스추상화 — 워치 CRUD, `FarePriceProvider`(Simulator), 가격이력 시계열, 웹(Next.js 목록·생성·가격차트)
 - [x] **P2** 분산 스케줄 — 시간당 스윕 + **Redis 분산락**, "락 보유 중 중복폴링 0" 테스트, 변화감지 → `price_alert`(dedup_key 멱등) ⭐
-- [ ] **P3** 알림 — Notifier 멱등 dedup + 재시도, FCM 푸시 + Email, Android(Compose) 앱
+- [x] **P3 (알림)** — 트랜잭션 **아웃박스** + 디스패처(멱등 dedup · 재시도→FAILED) · 이메일/푸시 **멀티채널**(로그 sender, FCM/SMTP 드롭인) · `/alerts` 발송이력 ✅ · *남음: Android(Compose) 앱 — Android SDK 필요*
 - [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅ · *남음: Amadeus/Travelpayouts 실어댑터, 딜 점수, k3d 멀티팟*
 - [ ] **P5** 날씨 + 폴리시 — Open-Meteo 평년값 → D-16 실예보 크로스오버, 메트릭/Grafana, 데모GIF·Android 녹화
 

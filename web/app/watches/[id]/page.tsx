@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { CalendarCell, PollResult, PricePoint, Watch } from '@/lib/api';
+import type { Alert, CalendarCell, PollResult, PricePoint, Watch } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
 import PriceHeatmap from '@/components/PriceHeatmap';
 
@@ -15,16 +15,23 @@ export default function WatchDetailPage() {
   const [watch, setWatch] = useState<Watch | null>(null);
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [calendar, setCalendar] = useState<CalendarCell[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [poll, setPoll] = useState<PollResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [w, p, c] = await Promise.all([api.getWatch(id), api.getPrices(id), api.getCalendar(id)]);
+      const [w, p, c, al] = await Promise.all([
+        api.getWatch(id),
+        api.getPrices(id),
+        api.getCalendar(id),
+        api.getAlerts(id),
+      ]);
       setWatch(w);
       setPrices(p);
       setCalendar(c);
+      setAlerts(al);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -109,6 +116,33 @@ export default function WatchDetailPage() {
                 ? `🎉 새 최저가 갱신! ${fmt(poll.lowestAmount)} ${poll.lowestCurrency ?? ''}`
                 : `이번 폴은 갱신 없음 · 현재 최저 ${fmt(poll.lowestAmount)} ${poll.lowestCurrency ?? ''}`}
             </p>
+          )}
+
+          {alerts.length > 0 && (
+            <section className="card">
+              <h3 className="card-title">알림 내역</h3>
+              <ul className="alerts">
+                {alerts.map((a) => (
+                  <li key={a.id} className="alert-row">
+                    <span className="alert-main">
+                      🎉 새 최저가 {a.newLow.toLocaleString('ko-KR')} {watch.currency}
+                      {a.previousLow ? ` (이전 ${a.previousLow.toLocaleString('ko-KR')})` : ''}
+                    </span>
+                    <span className="alert-channels">
+                      {a.notifications.map((n) => (
+                        <span
+                          key={n.channel}
+                          className={`chan ${n.status === 'SENT' ? 'sent' : n.status === 'FAILED' ? 'failed' : 'pending'}`}
+                        >
+                          {n.channel === 'PUSH' ? '📱 푸시' : '✉ 이메일'}{' '}
+                          {n.status === 'SENT' ? '✓' : n.status === 'FAILED' ? '✕' : '…'}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
           <section className="card">

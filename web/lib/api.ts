@@ -70,6 +70,25 @@ export interface CalendarCell {
   currency: string;
 }
 
+export type Channel = 'PUSH' | 'EMAIL';
+export type DeliveryStatus = 'PENDING' | 'SENT' | 'FAILED' | 'RETRY';
+
+export interface NotificationDelivery {
+  channel: Channel;
+  status: DeliveryStatus;
+  attempts: number;
+  sentAt?: string | null;
+}
+
+export interface Alert {
+  id: string;
+  rule: AlertRule;
+  previousLow?: number | null;
+  newLow: number;
+  createdAt: string;
+  notifications: NotificationDelivery[];
+}
+
 export interface CreateWatchInput {
   userRef: string;
   origin: string;
@@ -122,4 +141,6 @@ export const api = {
     fetch(`/api/watches/${id}/prices`, { cache: 'no-store' }).then((r) => unwrap<PricePoint[]>(r)),
   getCalendar: (id: string): Promise<CalendarCell[]> =>
     fetch(`/api/watches/${id}/calendar`, { cache: 'no-store' }).then((r) => unwrap<CalendarCell[]>(r)),
+  getAlerts: (id: string): Promise<Alert[]> =>
+    fetch(`/api/watches/${id}/alerts`, { cache: 'no-store' }).then((r) => unwrap<Alert[]>(r)),
 };
