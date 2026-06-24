@@ -29,7 +29,7 @@ public class FareSweepScheduler {
 	public void scheduled() {
 		SweepResult result = sweep.run();
 		if (result.ran()) {
-			log.info("sweep ran: polled {} due watch(es)", result.polled());
+			log.info("sweep ran: polled {} (deferred {} over budget)", result.polled(), result.skipped());
 		} else {
 			log.debug("sweep skipped: another instance holds the lock");
 		}

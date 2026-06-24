@@ -3,6 +3,7 @@ package com.portfolio.farewatch.repo;
 import com.portfolio.farewatch.domain.PricePoint;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,10 +29,33 @@ public interface PricePointRepository extends JpaRepository<PricePoint, UUID> {
 			""")
 	List<DateLow> cheapestByDepartDate(@Param("watchId") UUID watchId);
 
+	/** Per-watch price spread, in one query — feeds the adaptive-polling volatility signal. */
+	@Query("""
+			select p.watch.id as watchId, min(p.amount) as min, max(p.amount) as max,
+			       avg(p.amount) as avg, count(p) as cnt
+			from PricePoint p
+			where p.watch.id in :ids
+			group by p.watch.id
+			""")
+	List<VolStat> volatilityStats(@Param("ids") Collection<UUID> ids);
+
 	/** Projection for {@link #cheapestByDepartDate}. */
 	interface DateLow {
 		LocalDate getDepartDate();
 
 		BigDecimal getLowest();
+	}
+
+	/** Projection for {@link #volatilityStats}. */
+	interface VolStat {
+		UUID getWatchId();
+
+		BigDecimal getMin();
+
+		BigDecimal getMax();
+
+		Double getAvg();
+
+		long getCnt();
 	}
 }

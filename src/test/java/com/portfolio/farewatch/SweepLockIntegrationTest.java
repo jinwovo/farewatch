@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.portfolio.farewatch.domain.TripType;
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.lock.RedisDistributedLock;
+import com.portfolio.farewatch.ratelimit.RedisRateLimiter;
 import com.portfolio.farewatch.repo.PriceAlertRepository;
 import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
@@ -52,6 +53,8 @@ class SweepLockIntegrationTest {
 	@Autowired
 	RedisDistributedLock lock;
 	@Autowired
+	RedisRateLimiter rateLimiter;
+	@Autowired
 	WatchRepository watches;
 	@Autowired
 	PricePointRepository pricePoints;
@@ -67,6 +70,16 @@ class SweepLockIntegrationTest {
 		assertTrue(lock.unlock(key, "owner-A"));
 		assertTrue(lock.tryLock(key, "owner-B", Duration.ofSeconds(30)));   // free again
 		lock.unlock(key, "owner-B");
+	}
+
+	@Test
+	void token_bucket_rate_limiter_allows_burst_then_denies() {
+		String key = "test:" + UUID.randomUUID();
+		// negligible refill rate, capacity 3 → 3 allowed, 4th denied
+		assertTrue(rateLimiter.tryAcquire(key, 0.001, 3));
+		assertTrue(rateLimiter.tryAcquire(key, 0.001, 3));
+		assertTrue(rateLimiter.tryAcquire(key, 0.001, 3));
+		assertFalse(rateLimiter.tryAcquire(key, 0.001, 3));
 	}
 
 	@Test
