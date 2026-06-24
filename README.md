@@ -14,6 +14,8 @@
 | ![home](docs/demo/home.png) | ![detail](docs/demo/detail.png) |
 | **공항 자동완성** (근처공항·거리, OurAirports 실데이터) | **유연 날짜 캘린더** (특정/조정가능) |
 | ![autocomplete](docs/demo/autocomplete.png) | ![calendar](docs/demo/calendar.png) |
+| **한국어 검색** (전 세계, Wikidata + 큐레이션) | **왕복** (가는/오는 날 + 가는/오는 시간대) |
+| ![korean](docs/demo/korean-search.png) | ![roundtrip](docs/demo/roundtrip.png) |
 
 > 입력 UX는 스카이스캐너에서 빌려오되 출력은 **워치 → 가격 추적 → 알림 → 최저가 사이트 딥링크**. 디자인 시스템: 스타크 화이트 캔버스 + DM Sans + 블랙 필 CTA + 하나의 비비드 코랄 "현재 최저가" 카드.
 
