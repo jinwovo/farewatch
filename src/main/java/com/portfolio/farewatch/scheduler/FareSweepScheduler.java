@@ -1,5 +1,6 @@
 package com.portfolio.farewatch.scheduler;
 
+import com.portfolio.farewatch.notify.NotificationDispatcher;
 import com.portfolio.farewatch.service.FareSweepService;
 import com.portfolio.farewatch.service.FareSweepService.SweepResult;
 import com.portfolio.farewatch.worker.PollWorker;
@@ -22,12 +23,14 @@ public class FareSweepScheduler {
 
 	private final FareSweepService sweep;
 	private final PollWorker worker;
+	private final NotificationDispatcher dispatcher;
 	private final int drainMax;
 
-	public FareSweepScheduler(FareSweepService sweep, PollWorker worker,
+	public FareSweepScheduler(FareSweepService sweep, PollWorker worker, NotificationDispatcher dispatcher,
 			@Value("${farewatch.sweep.budget-per-tick:100}") int budgetPerTick) {
 		this.sweep = sweep;
 		this.worker = worker;
+		this.dispatcher = dispatcher;
 		this.drainMax = Math.max(1, budgetPerTick) * 2;
 	}
 
@@ -37,9 +40,10 @@ public class FareSweepScheduler {
 	public void scheduled() {
 		SweepResult result = sweep.run();
 		int drained = worker.drain(drainMax);
-		if (result.ran() || drained > 0) {
-			log.info("sweep: enqueued {} (deferred {}), this worker drained {}",
-					result.enqueued(), result.deferred(), drained);
+		int notified = dispatcher.dispatch(drainMax * 2);
+		if (result.ran() || drained > 0 || notified > 0) {
+			log.info("sweep: enqueued {} (deferred {}), drained {}, notified {}",
+					result.enqueued(), result.deferred(), drained, notified);
 		}
 	}
 }

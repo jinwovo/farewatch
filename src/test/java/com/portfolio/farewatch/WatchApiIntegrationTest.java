@@ -101,6 +101,36 @@ class WatchApiIntegrationTest {
 	}
 
 	@Test
+	void poll_fires_alert_and_notifications_are_sent() throws Exception {
+		String body = """
+				{
+				  "userRef": "notif-user",
+				  "origin": "ICN",
+				  "destination": "HKG",
+				  "tripType": "ONE_WAY",
+				  "departDateFrom": "2026-08-10",
+				  "departDateTo": "2026-08-12"
+				}
+				""";
+		String created = mockMvc.perform(post("/api/watches")
+						.contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		String id = JsonPath.read(created, "$.id");
+
+		// first poll fires a NEW_LOW alert; the controller dispatches its notifications
+		mockMvc.perform(post("/api/watches/{id}/poll", id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.newLow").value(true));
+
+		mockMvc.perform(get("/api/watches/{id}/alerts", id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].notifications", hasSize(2)))            // PUSH + EMAIL
+				.andExpect(jsonPath("$[0].notifications[?(@.status=='SENT')]", hasSize(2)));
+	}
+
+	@Test
 	void missing_watch_is_404() throws Exception {
 		mockMvc.perform(get("/api/watches/{id}", "00000000-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());

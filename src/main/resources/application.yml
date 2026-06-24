@@ -46,3 +46,5 @@ farewatch:
   circuit-breaker:
     failure-threshold: ${CB_THRESHOLD:5}     # consecutive source failures before the circuit opens
     cooldown-ms: ${CB_COOLDOWN_MS:30000}     # how long it stays open before a half-open probe
+  notify:
+    max-attempts: ${NOTIFY_MAX_ATTEMPTS:3}   # delivery retries before a notification is marked FAILED

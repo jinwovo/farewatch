@@ -1,7 +1,9 @@
 package com.portfolio.farewatch.web;
 
+import com.portfolio.farewatch.notify.NotificationDispatcher;
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
+import com.portfolio.farewatch.web.dto.AlertResponse;
 import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.PollResultResponse;
@@ -27,10 +29,13 @@ public class WatchController {
 
 	private final WatchService watchService;
 	private final PollService pollService;
+	private final NotificationDispatcher notificationDispatcher;
 
-	public WatchController(WatchService watchService, PollService pollService) {
+	public WatchController(WatchService watchService, PollService pollService,
+			NotificationDispatcher notificationDispatcher) {
 		this.watchService = watchService;
 		this.pollService = pollService;
+		this.notificationDispatcher = notificationDispatcher;
 	}
 
 	@PostMapping
@@ -57,7 +62,9 @@ public class WatchController {
 
 	@PostMapping("/{id}/poll")
 	public PollResultResponse poll(@PathVariable UUID id) {
-		return pollService.poll(id);
+		PollResultResponse result = pollService.poll(id);
+		notificationDispatcher.dispatch(100); // deliver any alert this poll just fired
+		return result;
 	}
 
 	@GetMapping("/{id}/prices")
@@ -68,5 +75,10 @@ public class WatchController {
 	@GetMapping("/{id}/calendar")
 	public List<CalendarCell> calendar(@PathVariable UUID id) {
 		return watchService.priceCalendar(id);
+	}
+
+	@GetMapping("/{id}/alerts")
+	public List<AlertResponse> alerts(@PathVariable UUID id) {
+		return watchService.alertHistory(id);
 	}
 }

@@ -21,9 +21,11 @@ public class AlertService {
 	private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
 	private final PriceAlertRepository alerts;
+	private final NotificationService notifications;
 
-	public AlertService(PriceAlertRepository alerts) {
+	public AlertService(PriceAlertRepository alerts, NotificationService notifications) {
 		this.alerts = alerts;
+		this.notifications = notifications;
 	}
 
 	public Optional<PriceAlert> evaluate(Watch watch, PricePoint lowest, BigDecimal previousLow) {
@@ -35,8 +37,10 @@ public class AlertService {
 		if (alerts.existsByDedupKey(dedupKey)) {
 			return Optional.empty(); // already fired — idempotent
 		}
-		return Optional.of(alerts.save(new PriceAlert(
-				watch, lowest, watch.getAlertRule(), previousLow, lowest.getAmount(), dedupKey)));
+		PriceAlert saved = alerts.save(new PriceAlert(
+				watch, lowest, watch.getAlertRule(), previousLow, lowest.getAmount(), dedupKey));
+		notifications.createForAlert(saved, watch); // transactional outbox (same tx as the alert)
+		return Optional.of(saved);
 	}
 
 	private boolean triggered(Watch w, BigDecimal now, BigDecimal previousLow) {

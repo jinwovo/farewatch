@@ -1,12 +1,18 @@
 package com.portfolio.farewatch.service;
 
+import com.portfolio.farewatch.domain.PriceAlert;
 import com.portfolio.farewatch.domain.Watch;
+import com.portfolio.farewatch.repo.NotificationRepository;
+import com.portfolio.farewatch.repo.PriceAlertRepository;
 import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
+import com.portfolio.farewatch.web.dto.AlertResponse;
 import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
+import com.portfolio.farewatch.web.dto.NotificationResponse;
 import com.portfolio.farewatch.web.dto.PricePointResponse;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -18,10 +24,15 @@ public class WatchService {
 
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
+	private final PriceAlertRepository priceAlerts;
+	private final NotificationRepository notifications;
 
-	public WatchService(WatchRepository watches, PricePointRepository pricePoints) {
+	public WatchService(WatchRepository watches, PricePointRepository pricePoints,
+			PriceAlertRepository priceAlerts, NotificationRepository notifications) {
 		this.watches = watches;
 		this.pricePoints = pricePoints;
+		this.priceAlerts = priceAlerts;
+		this.notifications = notifications;
 	}
 
 	@Transactional
@@ -90,6 +101,18 @@ public class WatchService {
 		return pricePoints.cheapestByDepartDate(watchId).stream()
 				.map(d -> new CalendarCell(d.getDepartDate(), d.getLowest(), w.getCurrency()))
 				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<AlertResponse> alertHistory(UUID watchId) {
+		get(watchId); // 404 if the watch does not exist
+		List<AlertResponse> out = new ArrayList<>();
+		for (PriceAlert alert : priceAlerts.findByWatch_IdOrderByCreatedAtDesc(watchId)) {
+			List<NotificationResponse> deliveries = notifications.findByAlert_IdOrderByChannelAsc(alert.getId())
+					.stream().map(NotificationResponse::from).toList();
+			out.add(AlertResponse.from(alert, deliveries));
+		}
+		return out;
 	}
 
 	@Transactional
