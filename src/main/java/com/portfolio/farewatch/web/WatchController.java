@@ -2,6 +2,7 @@ package com.portfolio.farewatch.web;
 
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
+import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.PollResultResponse;
 import com.portfolio.farewatch.web.dto.PricePointResponse;
@@ -62,5 +63,10 @@ public class WatchController {
 	@GetMapping("/{id}/prices")
 	public List<PricePointResponse> prices(@PathVariable UUID id) {
 		return watchService.priceHistory(id);
+	}
+
+	@GetMapping("/{id}/calendar")
+	public List<CalendarCell> calendar(@PathVariable UUID id) {
+		return watchService.priceCalendar(id);
 	}
 }

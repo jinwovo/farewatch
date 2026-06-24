@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 /** Create-watch request. Optional fields fall back to defaults in the service. */
 public record CreateWatchRequest(
@@ -21,6 +22,8 @@ public record CreateWatchRequest(
 		@NotNull LocalDate departDateTo,
 		LocalDate returnDateFrom,
 		LocalDate returnDateTo,
+		LocalTime departTimeFrom,
+		LocalTime departTimeTo,
 		@Min(1) Integer passengers,
 		Cabin cabin,
 		String currency,

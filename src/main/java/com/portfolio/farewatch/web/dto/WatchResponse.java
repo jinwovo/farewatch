@@ -6,6 +6,7 @@ import com.portfolio.farewatch.domain.TripType;
 import com.portfolio.farewatch.domain.Watch;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record WatchResponse(
@@ -18,6 +19,8 @@ public record WatchResponse(
 		LocalDate departDateTo,
 		LocalDate returnDateFrom,
 		LocalDate returnDateTo,
+		LocalTime departTimeFrom,
+		LocalTime departTimeTo,
 		int passengers,
 		Cabin cabin,
 		String currency,
@@ -32,6 +35,7 @@ public record WatchResponse(
 		return new WatchResponse(
 				w.getId(), w.getUserRef(), w.getOrigin(), w.getDestination(), w.getTripType(),
 				w.getDepartDateFrom(), w.getDepartDateTo(), w.getReturnDateFrom(), w.getReturnDateTo(),
+				w.getDepartTimeFrom(), w.getDepartTimeTo(),
 				w.getPassengers(), w.getCabin(), w.getCurrency(), w.getAlertRule(),
 				w.isActive(), w.getPollIntervalMin(), w.getLastPolledAt(), w.getNextPollAt(), w.getCreatedAt());
 	}

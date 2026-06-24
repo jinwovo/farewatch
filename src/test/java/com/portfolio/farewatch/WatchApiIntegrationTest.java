@@ -70,6 +70,37 @@ class WatchApiIntegrationTest {
 	}
 
 	@Test
+	void time_window_persists_and_calendar_returns_cheapest_per_date() throws Exception {
+		String body = """
+				{
+				  "userRef": "cal-user",
+				  "origin": "ICN",
+				  "destination": "NRT",
+				  "tripType": "ONE_WAY",
+				  "departDateFrom": "2026-08-01",
+				  "departDateTo": "2026-08-05",
+				  "departTimeFrom": "06:00",
+				  "departTimeTo": "12:00"
+				}
+				""";
+		String created = mockMvc.perform(post("/api/watches")
+						.contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.departTimeFrom", containsString("06:00")))
+				.andReturn().getResponse().getContentAsString();
+		String id = JsonPath.read(created, "$.id");
+
+		for (int i = 0; i < 3; i++) {
+			mockMvc.perform(post("/api/watches/{id}/poll", id)).andExpect(status().isOk());
+		}
+
+		mockMvc.perform(get("/api/watches/{id}/calendar", id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].date").exists())
+				.andExpect(jsonPath("$[0].lowestAmount").isNumber());
+	}
+
+	@Test
 	void missing_watch_is_404() throws Exception {
 		mockMvc.perform(get("/api/watches/{id}", "00000000-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());

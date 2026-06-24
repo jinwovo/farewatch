@@ -3,6 +3,7 @@ package com.portfolio.farewatch.service;
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
+import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.PricePointResponse;
 import java.time.Instant;
@@ -37,6 +38,8 @@ public class WatchService {
 		w.setDepartDateTo(r.departDateTo());
 		w.setReturnDateFrom(r.returnDateFrom());
 		w.setReturnDateTo(r.returnDateTo());
+		w.setDepartTimeFrom(r.departTimeFrom());
+		w.setDepartTimeTo(r.departTimeTo());
 		if (r.passengers() != null) {
 			w.setPassengers(r.passengers());
 		}
@@ -76,6 +79,14 @@ public class WatchService {
 		get(watchId); // 404 if the watch does not exist
 		return pricePoints.findByWatch_IdOrderByObservedAtAsc(watchId).stream()
 				.map(PricePointResponse::from)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<CalendarCell> priceCalendar(UUID watchId) {
+		Watch w = get(watchId); // 404 if the watch does not exist
+		return pricePoints.cheapestByDepartDate(watchId).stream()
+				.map(d -> new CalendarCell(d.getDepartDate(), d.getLowest(), w.getCurrency()))
 				.toList();
 	}
 

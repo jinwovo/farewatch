@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -51,6 +52,12 @@ public class Watch {
 
 	@Column(name = "return_date_to")
 	private LocalDate returnDateTo;
+
+	@Column(name = "depart_time_from")
+	private LocalTime departTimeFrom;
+
+	@Column(name = "depart_time_to")
+	private LocalTime departTimeTo;
 
 	@Column(nullable = false)
 	private int passengers = 1;
@@ -161,6 +168,22 @@ public class Watch {
 
 	public void setReturnDateTo(LocalDate returnDateTo) {
 		this.returnDateTo = returnDateTo;
+	}
+
+	public LocalTime getDepartTimeFrom() {
+		return departTimeFrom;
+	}
+
+	public void setDepartTimeFrom(LocalTime departTimeFrom) {
+		this.departTimeFrom = departTimeFrom;
+	}
+
+	public LocalTime getDepartTimeTo() {
+		return departTimeTo;
+	}
+
+	public void setDepartTimeTo(LocalTime departTimeTo) {
+		this.departTimeTo = departTimeTo;
 	}
 
 	public int getPassengers() {
