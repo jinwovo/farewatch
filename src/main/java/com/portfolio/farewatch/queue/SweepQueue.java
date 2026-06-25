@@ -16,6 +16,7 @@ import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -35,9 +36,12 @@ public class SweepQueue {
 	static final String DLQ = "farewatch:sweep:dlq";
 
 	private final StringRedisTemplate redis;
+	private final long streamMaxLen;
 
-	public SweepQueue(StringRedisTemplate redis) {
+	public SweepQueue(StringRedisTemplate redis,
+			@Value("${farewatch.sweep.stream-maxlen:50000}") long streamMaxLen) {
 		this.redis = redis;
+		this.streamMaxLen = streamMaxLen;
 	}
 
 	@PostConstruct
@@ -49,9 +53,22 @@ public class SweepQueue {
 		}
 	}
 
-	/** Producer: append a watch to the stream. */
+	/**
+	 * Producer: append a watch to the stream, then bound the stream's length with an approximate
+	 * XTRIM (~). Trimming is safe here because enqueue is self-healing: a watch stays due until a
+	 * poll advances its {@code next_poll_at}, so a job trimmed before it was processed is simply
+	 * re-enqueued on the next sweep tick. The bound must stay well above peak in-flight depth.
+	 */
 	public RecordId enqueue(UUID watchId) {
-		return redis.opsForStream().add(STREAM, Map.of("watchId", watchId.toString()));
+		RecordId id = redis.opsForStream().add(STREAM, Map.of("watchId", watchId.toString()));
+		redis.opsForStream().trim(STREAM, streamMaxLen, true); // approximate (~) → amortized O(1)
+		return id;
+	}
+
+	/** Current stream length (for monitoring / tests). */
+	public long streamSize() {
+		Long n = redis.opsForStream().size(STREAM);
+		return n == null ? 0L : n;
 	}
 
 	/** Consumer: claim up to {@code count} not-yet-delivered jobs for this consumer. */

@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,13 @@ public interface PricePointRepository extends JpaRepository<PricePoint, UUID> {
 
 	/** Full price time-series for a watch, oldest first (for charting). */
 	List<PricePoint> findByWatch_IdOrderByObservedAtAsc(UUID watchId);
+
+	/**
+	 * Most-recent N price points (newest first). Used everywhere a bounded window is enough —
+	 * buy signal / anomaly stats / chart — so a watch with years of history never loads its
+	 * whole series into the JVM. Pass a {@code PageRequest.of(0, N)} to cap the size.
+	 */
+	List<PricePoint> findByWatch_IdOrderByObservedAtDesc(UUID watchId, Pageable pageable);
 
 	/** All-time lowest observed price for a watch. */
 	Optional<PricePoint> findFirstByWatch_IdOrderByAmountAscObservedAtAsc(UUID watchId);

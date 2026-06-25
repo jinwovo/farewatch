@@ -54,6 +54,8 @@ farewatch:
     initial-delay-ms: ${SWEEP_INITIAL_DELAY_MS:15000} # start sweeping ~15s after boot
     lock-ttl-ms: ${SWEEP_LOCK_TTL_MS:300000}
     budget-per-tick: ${SWEEP_BUDGET:100}             # adaptive: max watches polled per tick (highest-value first)
+    candidate-pool-factor: ${SWEEP_POOL_FACTOR:5}    # due-scan loads at most budget*factor (oldest-due first), then ranks
+    stream-maxlen: ${SWEEP_STREAM_MAXLEN:50000}      # cap Redis stream growth via approx XTRIM (safe: due watches re-enqueue)
     reclaim-min-idle-ms: ${SWEEP_RECLAIM_MIN_IDLE_MS:120000} # crash recovery: reclaim a dead worker's job after 2m idle
     max-deliveries: ${SWEEP_MAX_DELIVERIES:5}        # give up (→ dead-letter queue) after this many failed deliveries
   rate-limit:

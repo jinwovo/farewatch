@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,11 +37,13 @@ public class FareSweepService {
 	private final SweepQueue queue;
 	private final Duration lockTtl;
 	private final int budgetPerTick;
+	private final int poolFactor;
 
 	public FareSweepService(RedisDistributedLock lock, WatchRepository watches, PricePointRepository pricePoints,
 			PollScorer scorer, SweepQueue queue,
 			@Value("${farewatch.sweep.lock-ttl-ms:300000}") long lockTtlMs,
-			@Value("${farewatch.sweep.budget-per-tick:100}") int budgetPerTick) {
+			@Value("${farewatch.sweep.budget-per-tick:100}") int budgetPerTick,
+			@Value("${farewatch.sweep.candidate-pool-factor:5}") int poolFactor) {
 		this.lock = lock;
 		this.watches = watches;
 		this.pricePoints = pricePoints;
@@ -48,6 +51,7 @@ public class FareSweepService {
 		this.queue = queue;
 		this.lockTtl = Duration.ofMillis(lockTtlMs);
 		this.budgetPerTick = budgetPerTick;
+		this.poolFactor = Math.max(1, poolFactor);
 	}
 
 	public SweepResult run() {
@@ -56,7 +60,11 @@ public class FareSweepService {
 			return SweepResult.notRun(); // another instance is enqueuing → no double-enqueue
 		}
 		try {
-			List<Watch> due = watches.findByActiveTrueAndNextPollAtLessThanEqual(Instant.now());
+			// Bounded candidate pool: at most budget*poolFactor oldest-due watches, ranked in-JVM.
+			// Caps memory + the volatility query under a huge backlog; oldest-due-first keeps it fair
+			// (a starved watch eventually becomes oldest → enters the pool → gets served).
+			List<Watch> due = watches.findByActiveTrueAndNextPollAtLessThanEqualOrderByNextPollAtAsc(
+					Instant.now(), PageRequest.of(0, budgetPerTick * poolFactor));
 			if (due.isEmpty()) {
 				return SweepResult.ran(0, 0);
 			}

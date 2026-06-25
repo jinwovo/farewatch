@@ -16,11 +16,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class WatchService {
+
+	/** Chart returns at most this many recent points (the client downsamples further). */
+	private static final int CHART_MAX_POINTS = 2000;
 
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
@@ -90,7 +94,9 @@ public class WatchService {
 	@Transactional(readOnly = true)
 	public List<PricePointResponse> priceHistory(UUID watchId) {
 		get(watchId); // 404 if the watch does not exist
-		return pricePoints.findByWatch_IdOrderByObservedAtAsc(watchId).stream()
+		// Bounded to the most recent N (newest first), then re-ordered oldest-first for the chart.
+		return pricePoints.findByWatch_IdOrderByObservedAtDesc(watchId, PageRequest.of(0, CHART_MAX_POINTS))
+				.reversed().stream()
 				.map(PricePointResponse::from)
 				.toList();
 	}

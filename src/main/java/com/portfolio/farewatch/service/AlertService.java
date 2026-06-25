@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 /**
@@ -24,6 +25,8 @@ public class AlertService {
 
 	/** Minimum prior observations before a z-score is statistically meaningful. */
 	private static final int ANOMALY_MIN_HISTORY = 8;
+	/** Z-score is computed over at most this many recent points (scales to long series). */
+	private static final int ANOMALY_WINDOW = 200;
 	/** A new low this many standard deviations below the route's mean is flagged a mistake fare. */
 	private static final double ANOMALY_Z = -2.5;
 
@@ -62,7 +65,8 @@ public class AlertService {
 	 * deviations below the mean — purely from the numbers, no thresholds to tune per route.
 	 */
 	private boolean isAnomaly(Watch watch, BigDecimal newLow) {
-		List<PricePoint> history = pricePoints.findByWatch_IdOrderByObservedAtAsc(watch.getId());
+		List<PricePoint> history = pricePoints
+				.findByWatch_IdOrderByObservedAtDesc(watch.getId(), PageRequest.of(0, ANOMALY_WINDOW));
 		if (history.size() < ANOMALY_MIN_HISTORY) {
 			return false; // not enough signal to call anything an outlier yet
 		}

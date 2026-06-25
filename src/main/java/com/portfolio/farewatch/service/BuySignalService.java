@@ -10,6 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class BuySignalService {
+
+	/** Stats run over the most recent observations, not the whole history (scales to long series). */
+	private static final int STAT_WINDOW = 200;
 
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
@@ -34,7 +38,10 @@ public class BuySignalService {
 	public BuySignal signalFor(UUID watchId) {
 		Watch w = watches.findById(watchId)
 				.orElseThrow(() -> new NoSuchElementException("watch not found: " + watchId));
-		List<PricePoint> pts = pricePoints.findByWatch_IdOrderByObservedAtAsc(watchId);
+		// Bounded window (newest first) → reversed to oldest-first so a[n-1] is the latest.
+		List<PricePoint> pts = pricePoints
+				.findByWatch_IdOrderByObservedAtDesc(watchId, PageRequest.of(0, STAT_WINDOW))
+				.reversed();
 		long days = ChronoUnit.DAYS.between(LocalDate.now(), w.getDepartDateFrom());
 
 		if (pts.size() < 3) {
@@ -46,7 +53,9 @@ public class BuySignalService {
 		double[] a = pts.stream().mapToDouble(p -> p.getAmount().doubleValue()).toArray();
 		int n = a.length;
 		double current = a[n - 1];
-		double lowest = min(a);
+		// All-time low via the indexed (watch_id, amount) lookup — not a JVM scan of the window.
+		double lowest = pricePoints.findFirstByWatch_IdOrderByAmountAscObservedAtAsc(watchId)
+				.map(p -> p.getAmount().doubleValue()).orElse(current);
 
 		double below = 0;
 		for (double v : a) {
@@ -92,14 +101,6 @@ public class BuySignalService {
 				+ (rising ? 8 : 0) + (soon ? 10 : 0) - (falling ? 6 : 0)), 0, 100);
 
 		return new BuySignal(rec, score, current, lowest, round1(percentile), round1(trend), round1(volatility), days, reason);
-	}
-
-	private static double min(double[] a) {
-		double m = a[0];
-		for (double v : a) {
-			m = Math.min(m, v);
-		}
-		return m;
 	}
 
 	private static double mean(double[] a, int from, int to) {
