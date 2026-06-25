@@ -1,6 +1,8 @@
 package com.portfolio.farewatch.web;
 
+import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.notify.NotificationDispatcher;
+import com.portfolio.farewatch.repo.AirportRepository;
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
 import com.portfolio.farewatch.weather.WeatherEstimate;
@@ -33,29 +35,39 @@ public class WatchController {
 	private final PollService pollService;
 	private final NotificationDispatcher notificationDispatcher;
 	private final WeatherService weatherService;
+	private final AirportRepository airports;
 
 	public WatchController(WatchService watchService, PollService pollService,
-			NotificationDispatcher notificationDispatcher, WeatherService weatherService) {
+			NotificationDispatcher notificationDispatcher, WeatherService weatherService,
+			AirportRepository airports) {
 		this.watchService = watchService;
 		this.pollService = pollService;
 		this.notificationDispatcher = notificationDispatcher;
 		this.weatherService = weatherService;
+		this.airports = airports;
+	}
+
+	/** Map a watch to its response, enriched with origin/destination airport display names. */
+	private WatchResponse resp(Watch w) {
+		return WatchResponse.from(w,
+				airports.findById(w.getOrigin()).orElse(null),
+				airports.findById(w.getDestination()).orElse(null));
 	}
 
 	@PostMapping
 	public ResponseEntity<WatchResponse> create(@Valid @RequestBody CreateWatchRequest request) {
-		WatchResponse body = WatchResponse.from(watchService.create(request));
+		WatchResponse body = resp(watchService.create(request));
 		return ResponseEntity.status(HttpStatus.CREATED).body(body);
 	}
 
 	@GetMapping
 	public List<WatchResponse> list(@RequestParam(required = false) String userRef) {
-		return watchService.list(userRef).stream().map(WatchResponse::from).toList();
+		return watchService.list(userRef).stream().map(this::resp).toList();
 	}
 
 	@GetMapping("/{id}")
 	public WatchResponse get(@PathVariable UUID id) {
-		return WatchResponse.from(watchService.get(id));
+		return resp(watchService.get(id));
 	}
 
 	@DeleteMapping("/{id}")

@@ -15,6 +15,10 @@ data class Watch(
     val cabin: String,
     val currency: String,
     val alertRule: String,
+    val originKorean: String? = null,
+    val originName: String? = null,
+    val destKorean: String? = null,
+    val destName: String? = null,
 )
 
 data class PricePoint(
@@ -63,6 +67,22 @@ data class Airport(
     val municipality: String?,
     val country: String,
     val large: Boolean,
+    val korean: String? = null,
+)
+
+data class NearbyAirport(
+    val iata: String,
+    val name: String,
+    val municipality: String?,
+    val country: String,
+    val large: Boolean,
+    val distanceKm: Double,
+)
+
+data class CalendarCell(
+    val date: String,
+    val lowestAmount: Double,
+    val currency: String,
 )
 
 // Gson omits null fields, so optional values simply fall back to backend defaults.

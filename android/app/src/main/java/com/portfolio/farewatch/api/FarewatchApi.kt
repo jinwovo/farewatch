@@ -10,6 +10,12 @@ interface FarewatchApi {
     @GET("api/airports")
     suspend fun searchAirports(@Query("q") q: String): List<Airport>
 
+    @GET("api/airports/{iata}/nearby")
+    suspend fun nearbyAirports(@Path("iata") iata: String, @Query("limit") limit: Int = 5): List<NearbyAirport>
+
+    @GET("api/watches/{id}/calendar")
+    suspend fun calendar(@Path("id") id: String): List<CalendarCell>
+
     @POST("api/watches")
     suspend fun createWatch(@Body request: CreateWatchRequest): Watch
 

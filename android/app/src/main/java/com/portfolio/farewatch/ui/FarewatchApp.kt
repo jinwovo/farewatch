@@ -1,25 +1,38 @@
 package com.portfolio.farewatch.ui
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,14 +40,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.portfolio.farewatch.api.Alert
 import com.portfolio.farewatch.api.ApiClient
+import com.portfolio.farewatch.api.CalendarCell
 import com.portfolio.farewatch.api.PricePoint
 import com.portfolio.farewatch.api.Watch
 import com.portfolio.farewatch.api.WeatherEstimate
+import com.portfolio.farewatch.ui.theme.Blue
+import com.portfolio.farewatch.ui.theme.CanvasWhite
+import com.portfolio.farewatch.ui.theme.Coral
+import com.portfolio.farewatch.ui.theme.Hairline
+import com.portfolio.farewatch.ui.theme.Ink
+import com.portfolio.farewatch.ui.theme.Steel
+import com.portfolio.farewatch.ui.theme.Stone
+import com.portfolio.farewatch.ui.theme.SuccessBg
+import com.portfolio.farewatch.ui.theme.SuccessText
+import com.portfolio.farewatch.ui.theme.Surface
 import kotlinx.coroutines.launch
+
+private val White = CanvasWhite
 
 @Composable
 fun FarewatchApp() {
@@ -43,13 +80,46 @@ fun FarewatchApp() {
     var refreshKey by remember { mutableStateOf(0) }
     val id = selectedId
     when {
-        creating -> CreateWatchScreen(
-            onBack = { creating = false },
-            onCreated = { creating = false; refreshKey++ },
-        )
+        creating -> CreateWatchScreen(onBack = { creating = false }, onCreated = { creating = false; refreshKey++ })
         id != null -> WatchDetailScreen(id = id, onBack = { selectedId = null })
-        else -> WatchListScreen(refreshKey = refreshKey, onOpen = { selectedId = it }, onCreate = { creating = true })
+        else -> WatchListScreen(refreshKey, onOpen = { selectedId = it }, onCreate = { creating = true })
     }
+}
+
+@Composable
+fun Brand() {
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("fare") }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Coral)) { append("·") }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("watch") }
+        },
+        fontSize = 22.sp,
+        color = Ink,
+    )
+}
+
+@Composable
+fun BackBar(onBack: () -> Unit) {
+    Text(
+        "←  목록",
+        color = Coral,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        modifier = Modifier.clickable { onBack() }.padding(vertical = 4.dp),
+    )
+}
+
+/** Black pill CTA (web .btn-primary). */
+@Composable
+fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, container: androidx.compose.ui.graphics.Color = Ink, content: androidx.compose.ui.graphics.Color = White, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(50),
+        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content, disabledContainerColor = Hairline, disabledContentColor = Stone),
+        modifier = modifier,
+    ) { Text(text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,43 +139,73 @@ fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> U
         }
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Text("fare·watch") }) },
+        containerColor = White,
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onCreate) { Text("＋ 워치 검색") }
+            ExtendedFloatingActionButton(onClick = onCreate, containerColor = Ink, contentColor = White) {
+                Text("＋  워치 검색", fontWeight = FontWeight.SemiBold)
+            }
         },
     ) { pad ->
-        Column(Modifier.padding(pad).padding(16.dp)) {
-            Text("항공권 최저가 감시", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
+        Column(Modifier.padding(pad).fillMaxSize().padding(20.dp)) {
+            Brand()
+            Spacer(Modifier.height(4.dp))
+            Text("항공권 최저가 감시", color = Steel, fontSize = 15.sp)
+            Spacer(Modifier.height(16.dp))
             when {
-                loading -> CircularProgressIndicator()
+                loading -> CircularProgressIndicator(color = Coral)
                 error != null -> Text("백엔드 연결 실패: $error", color = MaterialTheme.colorScheme.error)
-                watches.isEmpty() -> Text("워치가 없습니다.")
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(watches) { w ->
-                        ElevatedCard(modifier = Modifier.fillMaxWidth().clickable { onOpen(w.id) }) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("${w.origin} → ${w.destination}", style = MaterialTheme.typography.titleLarge)
-                                val window = if (w.departDateTo != w.departDateFrom) "${w.departDateFrom} ~ ${w.departDateTo}" else w.departDateFrom
-                                val trip = if (w.tripType == "ROUND_TRIP") "왕복" else "편도"
-                                Text("$window · $trip · ${w.cabin} · 알림 ${w.alertRule}", style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
+                watches.isEmpty() -> Text("워치가 없습니다. ＋ 워치 검색으로 만들어보세요.", color = Stone)
+                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(watches) { w -> WatchCard(w) { onOpen(w.id) } }
+                    item { Spacer(Modifier.height(72.dp)) }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WatchCard(w: Watch, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, Hairline, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(20.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(w.origin, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("  →  ", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Coral)
+            Text(w.destination, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (w.originKorean != null || w.destKorean != null) {
+            Spacer(Modifier.height(2.dp))
+            Text("${w.originKorean ?: w.origin} → ${w.destKorean ?: w.destination}", color = Steel, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+        val window = if (w.departDateTo != w.departDateFrom) "${w.departDateFrom} ~ ${w.departDateTo}" else w.departDateFrom
+        val trip = if (w.tripType == "ROUND_TRIP") "왕복" else "편도"
+        Spacer(Modifier.height(6.dp))
+        Text("$window · $trip · ${cabinKo(w.cabin)} · 알림 ${w.alertRule}", color = Steel, fontSize = 14.sp)
+    }
+}
+
+fun cabinKo(c: String) = when (c) {
+    "ECONOMY" -> "일반석"
+    "PREMIUM_ECONOMY" -> "프리미엄"
+    "BUSINESS" -> "비즈니스"
+    "FIRST" -> "일등석"
+    else -> c
+}
+
 @Composable
 fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     var watch by remember { mutableStateOf<Watch?>(null) }
     var prices by remember { mutableStateOf<List<PricePoint>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<Alert>>(emptyList()) }
     var weather by remember { mutableStateOf<List<WeatherEstimate>>(emptyList()) }
+    var calendar by remember { mutableStateOf<List<CalendarCell>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -115,6 +215,7 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             prices = ApiClient.api.prices(id)
             alerts = ApiClient.api.alerts(id)
             weather = ApiClient.api.weather(id)
+            calendar = ApiClient.api.calendar(id)
         } catch (e: Exception) {
             error = e.message
         }
@@ -122,60 +223,177 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     LaunchedEffect(id) { reload() }
 
     val lowest = prices.minByOrNull { it.amount }
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(watch?.let { "${it.origin} → ${it.destination}" } ?: "상세") },
-            navigationIcon = { TextButton(onClick = onBack) { Text("← 목록") } },
-        )
-    }) { pad ->
+    Column(
+        Modifier.fillMaxSize().background(White).verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        BackBar(onBack)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(watch?.origin ?: "", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+                Text("  →  ", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Coral)
+                Text(watch?.destination ?: "", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+            }
+            watch?.let { w ->
+                if (w.originKorean != null || w.destKorean != null) {
+                    Text("${w.originKorean ?: w.origin} → ${w.destKorean ?: w.destination}", color = Steel, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+                if (w.originName != null || w.destName != null) {
+                    Text("${w.originName ?: w.origin} · ${w.destName ?: w.destination}", color = Stone, fontSize = 12.sp)
+                }
+            }
+        }
+        error?.let { Text("오류: $it", color = MaterialTheme.colorScheme.error) }
+
+        // signature coral hero card
         Column(
-            Modifier.padding(pad).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxWidth().background(Coral, RoundedCornerShape(28.dp)).padding(28.dp),
         ) {
-            error?.let { Text("오류: $it", color = MaterialTheme.colorScheme.error) }
-            Card {
-                Column(Modifier.padding(16.dp)) {
-                    Text("현재 최저가", style = MaterialTheme.typography.labelMedium)
-                    Text(
-                        lowest?.let { "${it.amount.toLong()} ${it.currency}" } ?: "—",
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Text("${prices.size}회 관측", style = MaterialTheme.typography.bodySmall)
-                }
+            Text("현재 최저가", color = White.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(lowest?.let { "%,d".format(it.amount.toLong()) } ?: "—", color = White, fontSize = 46.sp, fontWeight = FontWeight.SemiBold)
+                lowest?.let { Text("  ${it.currency}", color = White.copy(alpha = 0.85f), fontSize = 20.sp) }
             }
-            Button(
-                enabled = !busy,
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        try {
-                            ApiClient.api.poll(id)
-                            reload()
-                        } catch (e: Exception) {
-                            error = e.message
-                        } finally {
-                            busy = false
-                        }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                lowest?.let { "${prices.size}회 관측 · 출발 ${it.departDate} · ${it.source}" } ?: "아직 관측 없음",
+                color = White.copy(alpha = 0.9f), fontSize = 13.sp,
+            )
+            lowest?.deepLink?.let { link ->
+                Spacer(Modifier.height(16.dp))
+                PillButton("최저가 사이트로 이동  →", onClick = {
+                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
+                }, container = White, content = Coral)
+            }
+        }
+
+        PillButton(
+            if (busy) "폴링 중…" else "지금 폴",
+            onClick = {
+                scope.launch {
+                    busy = true
+                    try {
+                        ApiClient.api.poll(id); reload()
+                    } catch (e: Exception) {
+                        error = e.message
+                    } finally {
+                        busy = false
                     }
-                },
-            ) { Text(if (busy) "폴링 중…" else "지금 폴") }
+                }
+            },
+            enabled = !busy,
+        )
 
-            if (alerts.isNotEmpty()) {
-                Text("알림 내역", style = MaterialTheme.typography.titleMedium)
-                alerts.forEach { a ->
-                    val channels = a.notifications.joinToString("  ") { "${it.channel} ${it.status}" }
-                    Text("🎉 ${a.newLow.toLong()} ${watch?.currency ?: ""}  —  $channels", style = MaterialTheme.typography.bodyMedium)
+        if (prices.size >= 2) {
+            SectionTitle("가격 추이")
+            PriceChart(prices)
+        }
+        if (calendar.isNotEmpty()) {
+            SectionTitle("날짜별 최저가")
+            Heatmap(calendar)
+        }
+        if (alerts.isNotEmpty()) {
+            SectionTitle("알림 내역")
+            alerts.forEach { a -> AlertRow(a, watch?.currency ?: "") }
+        }
+        if (weather.isNotEmpty()) {
+            SectionTitle("도착지 날씨 — ${watch?.destination ?: ""}")
+            weather.forEach { d -> WeatherRow(d) }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun AlertRow(a: Alert, currency: String) {
+    Row(
+        Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(12.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("🎉 ${"%,d".format(a.newLow.toLong())} $currency", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            a.notifications.forEach { n ->
+                val sent = n.status == "SENT"
+                Box(Modifier.background(if (sent) SuccessBg else Surface, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                    Text(
+                        "${if (n.channel == "PUSH") "📱" else "✉"} ${if (sent) "✓" else n.status}",
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (sent) SuccessText else Steel,
+                    )
                 }
             }
+        }
+    }
+}
 
-            if (weather.isNotEmpty()) {
-                Text("도착지 날씨", style = MaterialTheme.typography.titleMedium)
-                weather.forEach { d ->
-                    val src = if (d.source == "FORECAST") "예보" else "평년값"
-                    val max = d.tempMaxC?.toInt()?.toString() ?: "—"
-                    val min = d.tempMinC?.toInt()?.toString() ?: "—"
-                    Text("${d.date}   $max° / $min°   ☔ ${d.precipProbPct ?: "—"}%   [$src]", style = MaterialTheme.typography.bodySmall)
-                }
+@Composable
+private fun WeatherRow(d: WeatherEstimate) {
+    val src = if (d.source == "FORECAST") "예보" else "평년값"
+    val max = d.tempMaxC?.toInt()?.toString() ?: "—"
+    val min = d.tempMinC?.toInt()?.toString() ?: "—"
+    Text("${d.date}   $max° / $min°   ☔ ${d.precipProbPct ?: "—"}%   [$src]", color = Steel, fontSize = 14.sp)
+}
+
+@Composable
+private fun PriceChart(prices: List<PricePoint>) {
+    val amounts = prices.map { it.amount }
+    val min = amounts.min()
+    val max = amounts.max()
+    val lowIdx = amounts.indexOf(min)
+    Canvas(Modifier.fillMaxWidth().height(160.dp)) {
+        val n = amounts.size
+        val w = size.width
+        val h = size.height
+        val padV = 16f
+        fun px(i: Int) = if (n == 1) w / 2 else w * i / (n - 1)
+        fun py(v: Double): Float {
+            val t = if (max - min < 1e-6) 0.5 else (v - min) / (max - min)
+            return padV + (h - 2 * padV) * (1f - t.toFloat())
+        }
+        val line = Path()
+        amounts.forEachIndexed { i, v -> if (i == 0) line.moveTo(px(i), py(v)) else line.lineTo(px(i), py(v)) }
+        val area = Path()
+        area.addPath(line)
+        area.lineTo(px(n - 1), h)
+        area.lineTo(px(0), h)
+        area.close()
+        drawPath(area, Blue.copy(alpha = 0.07f))
+        drawPath(line, Blue, style = Stroke(width = 6f))
+        amounts.forEachIndexed { i, v ->
+            val low = i == lowIdx
+            drawCircle(if (low) Coral else Blue, radius = if (low) 10f else 6f, center = Offset(px(i), py(v)))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Heatmap(cells: List<CalendarCell>) {
+    val amounts = cells.map { it.lowestAmount }
+    val min = amounts.min()
+    val max = amounts.max()
+    val cheap = androidx.compose.ui.graphics.Color(0xFF16A34A)
+    val pricey = androidx.compose.ui.graphics.Color(0xFFE5484D)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        cells.forEach { c ->
+            val t = if (max - min < 1e-6) 0f else ((c.lowestAmount - min) / (max - min)).toFloat()
+            val best = c.lowestAmount == min
+            Column(
+                Modifier
+                    .width(96.dp)
+                    .background(lerp(cheap, pricey, t), RoundedCornerShape(12.dp))
+                    .then(if (best) Modifier.border(2.dp, Ink, RoundedCornerShape(12.dp)) else Modifier)
+                    .padding(10.dp),
+            ) {
+                Text(if (best) "최저" else "", color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(c.date.drop(5), color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("%,d".format(c.lowestAmount.toLong()), color = White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

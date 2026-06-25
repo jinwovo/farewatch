@@ -69,4 +69,26 @@ public class Airport {
 	public boolean isLarge() {
 		return large;
 	}
+
+	public String getAliases() {
+		return aliases;
+	}
+
+	/** A short Korean display label (e.g. "서울 김포") — first two distinct Hangul tokens of the aliases. */
+	public String getKorean() {
+		if (aliases == null || aliases.isBlank()) {
+			return null;
+		}
+		java.util.List<String> tokens = new java.util.ArrayList<>();
+		for (String t : aliases.trim().split("\\s+")) {
+			boolean hangul = t.codePoints().anyMatch(c -> c >= 0xAC00 && c <= 0xD7A3);
+			if (hangul && !tokens.contains(t)) {
+				tokens.add(t);
+			}
+			if (tokens.size() == 2) {
+				break;
+			}
+		}
+		return tokens.isEmpty() ? null : String.join(" ", tokens);
+	}
 }
