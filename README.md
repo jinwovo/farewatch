@@ -67,12 +67,16 @@ flowchart LR
 - **레이트리밋된 외부 API 보호** — 소스별 토큰버킷 + 서킷브레이커(resilience4j) + 죽은 소스 폴백
 - **멀티소스 정규화** — 이종 소스(GDS·애그리게이터·LCC 스크래퍼·시뮬레이터)를 하나의 `FarePriceProvider`로 합류해 최저가 채택
 - **멱등 알림** — `dedup_key`로 같은 하락을 두 번 쏘지 않음 + 재시도 (멀티채널: FCM 푸시 / Email)
+- **결정 레이어 (단순 추적 → 의사결정)** — 투명한 통계 모델(백분위·추세·변동성·출발까지 일수)로 **지금 사세요 / 기다려도 OK** 신호 + 0–100 **딜 스코어**. ML 없이 모든 추천이 숫자로 방어 가능
+- **에러요금 이상탐지** — 새 최저가가 노선 자체 이력 대비 **z-score ≤ −2.5** 면 *에러요금 의심* 우선 알림 (소스별 임계값 튜닝 없이 순수 통계)
+- **큐 장애복구** — 워커가 잡 처리 중 죽어도(claim 후 ack 없음) 손실 0: **XPENDING + XCLAIM**으로 다른 워커가 reclaim, N회 실패 잡은 **DLQ**로 격리 (무한 재시도 차단)
 
 ## 검증 (Verification)
 > 말이 아니라 실행으로 증명 — 채워지는 중 (로드맵 참고)
 
 - [x] 다른 인스턴스가 락 보유 시 **중복 폴링 0** (Redis 분산락 통합 테스트)
 - [x] 컨슈머그룹 **샤딩** — 두 워커가 잡 분할, 각 워치 정확히 1회 폴 (QueueShardingIntegrationTest)
+- [x] **장애복구** — 워커가 죽어 잡이 미-ack로 남으면 다른 워커가 reclaim해 정확히 1회 폴 · 반복 실패 잡은 **DLQ** 격리 (ChaosRecoveryIntegrationTest)
 - [x] **토큰버킷** 레이트리밋(버스트→거부) + **서킷브레이커**(직접 구현) 보호
 - [x] 적응형 폴링 — 예산 < due 시 **고가치 워치 우선** 큐잉 (AdaptiveSweepIntegrationTest)
 - [x] 알림 **멀티채널 발송**(이메일·푸시) — 아웃박스 + 재시도→FAILED + dedup (NotificationDispatchTest)
@@ -144,6 +148,7 @@ cd web && npm install && npm run dev
 - [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅
 - [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요 · 남음: Travelpayouts, 딜 점수, k3d 멀티팟*
 - [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅ · *남음: Grafana 대시보드*
+- [x] **고도화 (차별점)** — ① **매수 신호 + 딜 스코어**(투명 통계 모델, 웹·Android) ② **에러요금 이상탐지**(z-score, 🔥 우선 알림) ③ **큐 장애복구**(XPENDING+XCLAIM reclaim + DLQ, 카오스 테스트) ✅
 
 ## ADR
 
