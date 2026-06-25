@@ -42,6 +42,7 @@ data class Alert(
     val rule: String,
     val previousLow: Double?,
     val newLow: Double,
+    val mistakeFare: Boolean = false,
     val createdAt: String,
     val notifications: List<NotificationDelivery>,
 )

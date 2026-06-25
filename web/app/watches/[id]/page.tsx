@@ -188,8 +188,9 @@ export default function WatchDetailPage() {
               <h3 className="card-title">알림 내역</h3>
               <ul className="alerts">
                 {alerts.map((a) => (
-                  <li key={a.id} className="alert-row">
+                  <li key={a.id} className={`alert-row${a.mistakeFare ? ' mistake' : ''}`}>
                     <span className="alert-main">
+                      {a.mistakeFare && <span className="mistake-badge">🔥 에러요금 의심</span>}
                       🎉 새 최저가 {a.newLow.toLocaleString('ko-KR')} {watch.currency}
                       {a.previousLow ? ` (이전 ${a.previousLow.toLocaleString('ko-KR')})` : ''}
                     </span>

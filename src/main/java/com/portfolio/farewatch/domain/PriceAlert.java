@@ -50,6 +50,10 @@ public class PriceAlert {
 	@Column(name = "dedup_key", nullable = false, unique = true)
 	private String dedupKey;
 
+	/** Triggering price is a statistical outlier (>=2.5σ below the route's history) — likely a mistake fare. */
+	@Column(name = "mistake_fare", nullable = false)
+	private boolean mistakeFare = false;
+
 	@CreationTimestamp
 	@Column(name = "created_at", updatable = false)
 	private Instant createdAt;
@@ -93,6 +97,14 @@ public class PriceAlert {
 
 	public String getDedupKey() {
 		return dedupKey;
+	}
+
+	public boolean isMistakeFare() {
+		return mistakeFare;
+	}
+
+	public void setMistakeFare(boolean mistakeFare) {
+		this.mistakeFare = mistakeFare;
 	}
 
 	public Instant getCreatedAt() {

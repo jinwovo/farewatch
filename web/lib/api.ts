@@ -85,6 +85,7 @@ export interface Alert {
   rule: AlertRule;
   previousLow?: number | null;
   newLow: number;
+  mistakeFare: boolean;
   createdAt: string;
   notifications: NotificationDelivery[];
 }

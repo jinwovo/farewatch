@@ -392,12 +392,27 @@ private fun daysBetween(loIso: String, curIso: String): Long {
 
 @Composable
 private fun AlertRow(a: Alert, currency: String) {
+    val coral = androidx.compose.ui.graphics.Color(0xFFFF5530)
+    val rowBg = if (a.mistakeFare) androidx.compose.ui.graphics.Color(0xFFFFF3F0) else Surface
+    val rowMod = if (a.mistakeFare) {
+        Modifier.fillMaxWidth().background(rowBg, RoundedCornerShape(12.dp))
+            .border(1.dp, coral, RoundedCornerShape(12.dp)).padding(14.dp)
+    } else {
+        Modifier.fillMaxWidth().background(rowBg, RoundedCornerShape(12.dp)).padding(14.dp)
+    }
     Row(
-        Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(12.dp)).padding(14.dp),
+        rowMod,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text("🎉 ${"%,d".format(a.newLow.toLong())} $currency", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (a.mistakeFare) {
+                Box(Modifier.background(coral, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                    Text("🔥 에러요금 의심", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
+                }
+            }
+            Text("🎉 ${"%,d".format(a.newLow.toLong())} $currency", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             a.notifications.forEach { n ->
                 val sent = n.status == "SENT"

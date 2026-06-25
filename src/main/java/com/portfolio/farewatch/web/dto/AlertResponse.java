@@ -12,11 +12,12 @@ public record AlertResponse(
 		AlertRule rule,
 		BigDecimal previousLow,
 		BigDecimal newLow,
+		boolean mistakeFare,
 		Instant createdAt,
 		List<NotificationResponse> notifications) {
 
 	public static AlertResponse from(PriceAlert a, List<NotificationResponse> notifications) {
-		return new AlertResponse(a.getId(), a.getRule(), a.getPreviousLow(), a.getNewLow(), a.getCreatedAt(),
-				notifications);
+		return new AlertResponse(a.getId(), a.getRule(), a.getPreviousLow(), a.getNewLow(), a.isMistakeFare(),
+				a.getCreatedAt(), notifications);
 	}
 }

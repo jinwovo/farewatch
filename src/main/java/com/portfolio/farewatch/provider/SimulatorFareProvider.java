@@ -58,6 +58,13 @@ public class SimulatorFareProvider implements FarePriceProvider {
 			total += bestInbound;
 		}
 
+		// Rare airline pricing-engine glitch: ~2% of polls return a "mistake fare" at 40–60%
+		// of the normal total. Bounded jitter alone never produces these, so this is what makes
+		// the statistical anomaly detector (AlertService) demonstrable end-to-end.
+		if (ThreadLocalRandom.current().nextDouble() < 0.02) {
+			total *= 0.40 + ThreadLocalRandom.current().nextDouble() * 0.20;
+		}
+
 		int pax = Math.max(1, q.passengers());
 		long amount = Math.round(total * pax / 100.0) * 100; // round to nearest 100
 		String deepLink = "https://book.simulator.example/?o=" + q.origin().toUpperCase()
