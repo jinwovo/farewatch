@@ -19,6 +19,16 @@
 
 > 입력 UX는 스카이스캐너에서 빌려오되 출력은 **워치 → 가격 추적 → 알림 → 최저가 사이트 딥링크**. 디자인 시스템: 스타크 화이트 캔버스 + DM Sans + 블랙 필 CTA + 하나의 비비드 코랄 "현재 최저가" 카드.
 
+### Android 앱 (Kotlin · Jetpack Compose)
+
+웹과 **동일한 기능·디자인**을 네이티브로 구현 — 같은 `/api` 소비, DM Sans · 코랄 "현재 최저가" 카드 · 블랙 필. 라우트는 **IATA + 한국어 + 영문 공항명**으로 표시. (Windows-on-ARM이라 Google 에뮬은 불가 → **MuMu Player**(Hyper-V arm64 Android)에서 실데이터 구동·캡처.)
+
+| 워치 목록 (한글+영문 공항명) | 워치 상세 (코랄 카드·가격 차트) | 날짜별 최저가 히트맵 |
+|:--:|:--:|:--:|
+| ![android-list](docs/demo/android-list.png) | ![android-detail](docs/demo/android-detail.png) | ![android-heatmap](docs/demo/android-detail-2.png) |
+| **검색/생성** (공항·2개월 캘린더) | **한국어 자동완성** (서울 → GMP/ICN) | **시간대·좌석** (프리셋 + 직접 지정) |
+| ![android-search](docs/demo/android-search.png) | ![android-korean](docs/demo/android-search-korean.png) | ![android-time](docs/demo/android-search-2.png) |
+
 ---
 
 ## 문제 (Problem)
