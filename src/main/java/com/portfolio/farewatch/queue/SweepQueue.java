@@ -1,11 +1,17 @@
 package com.portfolio.farewatch.queue;
 
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.RedisStreamCommands.XClaimOptions;
 import org.springframework.data.redis.connection.stream.Consumer;
+import org.springframework.data.redis.connection.stream.PendingMessage;
+import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
@@ -25,6 +31,8 @@ public class SweepQueue {
 
 	static final String STREAM = "farewatch:sweep:stream";
 	static final String GROUP = "pollers";
+	/** Where jobs that fail too many times are parked for inspection instead of looping forever. */
+	static final String DLQ = "farewatch:sweep:dlq";
 
 	private final StringRedisTemplate redis;
 
@@ -65,6 +73,59 @@ public class SweepQueue {
 	/** Mark a job done so it leaves the pending list. */
 	public void ack(String recordId) {
 		redis.opsForStream().acknowledge(STREAM, GROUP, recordId);
+	}
+
+	/**
+	 * Crash recovery (the XAUTOCLAIM pattern). Scans the group's pending list for jobs
+	 * a now-dead worker claimed but never acked (idle longer than {@code minIdle}). Each
+	 * such job is either:
+	 * <ul>
+	 *   <li><b>dead-lettered</b> — if it has already been delivered {@code maxDeliveries}
+	 *       times and still failed, its payload is parked on the {@link #DLQ} stream and it
+	 *       is acked off the main group (so it stops looping forever), or</li>
+	 *   <li><b>reclaimed</b> — XCLAIM transfers ownership to {@code consumer}, and the job is
+	 *       returned for a retry.</li>
+	 * </ul>
+	 * The delivery count comes from XPENDING (before the claim), which is why this is built
+	 * from XPENDING + XCLAIM rather than a bare XAUTOCLAIM: XAUTOCLAIM alone can't make the
+	 * give-up decision.
+	 */
+	public List<Job> reclaim(String consumer, Duration minIdle, int maxDeliveries, int count) {
+		PendingMessages pending = redis.opsForStream().pending(STREAM, GROUP, Range.unbounded(), count);
+		if (pending == null || pending.isEmpty()) {
+			return List.of();
+		}
+		// id -> delivery count, for jobs idle long enough to assume their owner is gone
+		Map<RecordId, Long> stale = new LinkedHashMap<>();
+		for (PendingMessage pm : pending) {
+			if (pm.getElapsedTimeSinceLastDelivery().compareTo(minIdle) >= 0) {
+				stale.put(pm.getId(), pm.getTotalDeliveryCount());
+			}
+		}
+		if (stale.isEmpty()) {
+			return List.of();
+		}
+		RecordId[] ids = stale.keySet().toArray(new RecordId[0]);
+		var claimed = redis.opsForStream().claim(STREAM, GROUP, consumer, XClaimOptions.minIdle(minIdle).ids(ids));
+		List<Job> retry = new ArrayList<>();
+		if (claimed != null) {
+			for (var r : claimed) {
+				long deliveries = stale.getOrDefault(r.getId(), 1L);
+				if (deliveries >= maxDeliveries) {
+					redis.opsForStream().add(DLQ, r.getValue()); // park the payload for inspection
+					redis.opsForStream().acknowledge(STREAM, GROUP, r.getId().getValue()); // stop redelivering
+				} else {
+					retry.add(new Job(r.getId().getValue(), UUID.fromString(String.valueOf(r.getValue().get("watchId")))));
+				}
+			}
+		}
+		return retry;
+	}
+
+	/** Number of jobs that have been given up on (for monitoring / the chaos test). */
+	public long deadLetterSize() {
+		Long n = redis.opsForStream().size(DLQ);
+		return n == null ? 0L : n;
 	}
 
 	public record Job(String recordId, UUID watchId) {

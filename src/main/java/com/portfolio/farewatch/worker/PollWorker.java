@@ -3,6 +3,7 @@ package com.portfolio.farewatch.worker;
 import com.portfolio.farewatch.queue.SweepQueue;
 import com.portfolio.farewatch.queue.SweepQueue.Job;
 import com.portfolio.farewatch.service.PollService;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -40,6 +41,26 @@ public class PollWorker {
 				done++;
 			} catch (RuntimeException e) {
 				log.warn("poll failed for watch {} (left for reclaim): {}", j.watchId(), e.toString());
+			}
+		}
+		return done;
+	}
+
+	/**
+	 * Crash recovery: take over jobs a dead worker left pending (idle &gt; {@code minIdle}),
+	 * dead-lettering any that have failed {@code maxDeliveries} times, and poll the rest.
+	 * Returns how many reclaimed jobs were polled successfully.
+	 */
+	public int recover(Duration minIdle, int maxDeliveries, int max) {
+		List<Job> jobs = queue.reclaim(consumer, minIdle, maxDeliveries, max);
+		int done = 0;
+		for (Job j : jobs) {
+			try {
+				pollService.poll(j.watchId());
+				queue.ack(j.recordId());
+				done++;
+			} catch (RuntimeException e) {
+				log.warn("reclaimed poll failed for watch {} (left for next reclaim): {}", j.watchId(), e.toString());
 			}
 		}
 		return done;
