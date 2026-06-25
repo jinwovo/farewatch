@@ -115,6 +115,16 @@ input:focus, select:focus { outline: none; border: 2px solid var(--blue-deep); p
 .flash { padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; border: 1px solid var(--hairline); background: var(--surface); }
 .flash.low { background: var(--success-bg); color: var(--success-text); border-color: transparent; font-weight: 600; }
 
+/* price insights */
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.ins { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 14px; background: var(--surface); }
+.ins-k { font-size: 12px; font-weight: 600; color: var(--steel); text-transform: uppercase; letter-spacing: .3px; }
+.ins-v { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+.ins-v i { font-size: 14px; font-weight: 500; font-style: normal; color: var(--steel); }
+.ins-s { font-size: 13px; color: var(--steel); }
+.ins-s.high { color: var(--coral); font-weight: 600; }
+.ins-s.low { color: var(--success-text); font-weight: 600; }
+
 /* chart */
 .chart { width: 100%; height: auto; display: block; }
 .chart .axis { stroke: var(--hairline); stroke-width: 1; }

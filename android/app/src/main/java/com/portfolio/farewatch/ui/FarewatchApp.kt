@@ -285,6 +285,10 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             enabled = !busy,
         )
 
+        if (prices.isNotEmpty()) {
+            SectionTitle("가격 인사이트")
+            PriceInsights(prices, watch?.currency ?: "")
+        }
         if (prices.size >= 2) {
             SectionTitle("가격 추이")
             PriceChart(prices)
@@ -308,6 +312,52 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun PriceInsights(prices: List<PricePoint>, currency: String) {
+    val lo = prices.minByOrNull { it.amount } ?: return
+    val cur = prices.maxByOrNull { it.observedAt } ?: prices.last()
+    val diff = cur.amount - lo.amount
+    val pct = if (lo.amount != 0.0) diff / lo.amount * 100 else 0.0
+    val days = daysBetween(lo.observedAt, cur.observedAt)
+    fun won(v: Double) = "%,d".format(v.toLong())
+    Column(Modifier.fillMaxWidth().border(1.dp, Hairline, RoundedCornerShape(14.dp))) {
+        InsightRow("역대 최저", "${won(lo.amount)} $currency", "${lo.observedAt.take(10)} 기록", null)
+        InsightRow("현재가", "${won(cur.amount)} $currency", if (diff <= 0) "역대 최저가 갱신 중 🎉" else "최저보다 +${won(diff)} (+${"%.1f".format(pct)}%)", if (diff <= 0) SuccessText else Coral)
+        InsightRow("최저가 미갱신", "${days}일", if (days == 0L) "오늘 최저가 기록" else "${days}일째 안 옴", null)
+    }
+}
+
+@Composable
+private fun InsightRow(label: String, value: String, sub: String, subColor: androidx.compose.ui.graphics.Color?) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, color = Steel, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(sub, color = subColor ?: Stone, fontSize = 12.5.sp, fontWeight = if (subColor != null) FontWeight.SemiBold else FontWeight.Normal)
+        }
+    }
+}
+
+private fun toInstant(s: String): java.time.Instant? = try {
+    java.time.Instant.parse(s)
+} catch (e: Exception) {
+    try {
+        java.time.OffsetDateTime.parse(s).toInstant()
+    } catch (e2: Exception) {
+        null
+    }
+}
+
+private fun daysBetween(loIso: String, curIso: String): Long {
+    val a = toInstant(loIso)
+    val b = toInstant(curIso)
+    return if (a != null && b != null) java.time.Duration.between(a, b).toDays().coerceAtLeast(0) else 0
 }
 
 @Composable
@@ -340,9 +390,20 @@ private fun WeatherRow(d: WeatherEstimate) {
     Text("${d.date}   $max° / $min°   ☔ ${d.precipProbPct ?: "—"}%   [$src]", color = Steel, fontSize = 14.sp)
 }
 
+/** Down-sample to keep the trend readable with many jittery polls; keep first, last, all-time low. */
+private fun prepareChart(points: List<PricePoint>, max: Int = 48): List<PricePoint> {
+    if (points.size <= max) return points
+    val minIdx = points.indices.minByOrNull { points[it].amount } ?: 0
+    val keep = sortedSetOf(0, points.size - 1, minIdx)
+    val step = (points.size - 1).toDouble() / (max - 1)
+    for (i in 0 until max) keep.add(Math.round(i * step).toInt())
+    return keep.map { points[it] }
+}
+
 @Composable
 private fun PriceChart(prices: List<PricePoint>) {
-    val amounts = prices.map { it.amount }
+    val pts = prepareChart(prices)
+    val amounts = pts.map { it.amount }
     val min = amounts.min()
     val max = amounts.max()
     val lowIdx = amounts.indexOf(min)

@@ -113,6 +113,46 @@ export default function WatchDetailPage() {
             )}
           </div>
 
+          {prices.length > 0 &&
+            (() => {
+              const lo = prices.reduce((a, b) => (b.amount < a.amount ? b : a));
+              const cur = prices[prices.length - 1];
+              const diff = cur.amount - lo.amount;
+              const pct = lo.amount ? (diff / lo.amount) * 100 : 0;
+              const days = Math.max(0, Math.round((new Date(cur.observedAt).getTime() - new Date(lo.observedAt).getTime()) / 86400000));
+              return (
+                <section className="card">
+                  <h3 className="card-title">가격 인사이트</h3>
+                  <div className="insights">
+                    <div className="ins">
+                      <span className="ins-k">역대 최저</span>
+                      <span className="ins-v">
+                        {fmt(lo.amount)} <i>{watch.currency}</i>
+                      </span>
+                      <span className="ins-s">{lo.observedAt.slice(0, 10)} 기록</span>
+                    </div>
+                    <div className="ins">
+                      <span className="ins-k">현재가</span>
+                      <span className="ins-v">
+                        {fmt(cur.amount)} <i>{watch.currency}</i>
+                      </span>
+                      <span className={`ins-s ${diff <= 0 ? 'low' : 'high'}`}>
+                        {diff <= 0 ? '역대 최저가 갱신 중 🎉' : `최저보다 +${fmt(diff)} (+${pct.toFixed(1)}%)`}
+                      </span>
+                    </div>
+                    <div className="ins">
+                      <span className="ins-k">최저가 미갱신</span>
+                      <span className="ins-v">
+                        {days}
+                        <i>일</i>
+                      </span>
+                      <span className="ins-s">{days === 0 ? '오늘 최저가 기록' : `${days}일째 안 옴`}</span>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+
           {poll && (
             <p className={poll.newLow ? 'flash low' : 'flash'}>
               {poll.newLow
