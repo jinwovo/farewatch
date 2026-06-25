@@ -14,6 +14,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,21 +39,27 @@ import kotlinx.coroutines.launch
 @Composable
 fun FarewatchApp() {
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableStateOf(0) }
     val id = selectedId
-    if (id == null) {
-        WatchListScreen(onOpen = { selectedId = it })
-    } else {
-        WatchDetailScreen(id = id, onBack = { selectedId = null })
+    when {
+        creating -> CreateWatchScreen(
+            onBack = { creating = false },
+            onCreated = { creating = false; refreshKey++ },
+        )
+        id != null -> WatchDetailScreen(id = id, onBack = { selectedId = null })
+        else -> WatchListScreen(refreshKey = refreshKey, onOpen = { selectedId = it }, onCreate = { creating = true })
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WatchListScreen(onOpen: (String) -> Unit) {
+fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> Unit) {
     var watches by remember { mutableStateOf<List<Watch>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshKey) {
+        loading = true
         try {
             watches = ApiClient.api.watches()
         } catch (e: Exception) {
@@ -61,7 +68,12 @@ fun WatchListScreen(onOpen: (String) -> Unit) {
             loading = false
         }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("fare·watch") }) }) { pad ->
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("fare·watch") }) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(onClick = onCreate) { Text("＋ 워치 검색") }
+        },
+    ) { pad ->
         Column(Modifier.padding(pad).padding(16.dp)) {
             Text("항공권 최저가 감시", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))

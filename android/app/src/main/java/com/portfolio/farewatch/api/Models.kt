@@ -56,3 +56,30 @@ data class PollResult(
     val lowestCurrency: String?,
     val newLow: Boolean,
 )
+
+data class Airport(
+    val iata: String,
+    val name: String,
+    val municipality: String?,
+    val country: String,
+    val large: Boolean,
+)
+
+// Gson omits null fields, so optional values simply fall back to backend defaults.
+data class CreateWatchRequest(
+    val userRef: String,
+    val origin: String,
+    val destination: String,
+    val tripType: String,
+    val departDateFrom: String,
+    val departDateTo: String,
+    val returnDateFrom: String? = null,
+    val returnDateTo: String? = null,
+    val departTimeFrom: String? = null,
+    val departTimeTo: String? = null,
+    val returnTimeFrom: String? = null,
+    val returnTimeTo: String? = null,
+    val passengers: Int = 1,
+    val cabin: String = "ECONOMY",
+    val alertRule: String = "NEW_LOW",
+)

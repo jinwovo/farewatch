@@ -1,10 +1,18 @@
 package com.portfolio.farewatch.api
 
+import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface FarewatchApi {
+    @GET("api/airports")
+    suspend fun searchAirports(@Query("q") q: String): List<Airport>
+
+    @POST("api/watches")
+    suspend fun createWatch(@Body request: CreateWatchRequest): Watch
+
     @GET("api/watches")
     suspend fun watches(): List<Watch>
 
