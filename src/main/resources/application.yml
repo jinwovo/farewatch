@@ -66,3 +66,10 @@ farewatch:
     cooldown-ms: ${CB_COOLDOWN_MS:30000}     # how long it stays open before a half-open probe
   notify:
     max-attempts: ${NOTIFY_MAX_ATTEMPTS:3}   # delivery retries before a notification is marked FAILED
+  amadeus:
+    enabled: ${AMADEUS_ENABLED:false}        # real GDS source; metered free tier → keep off the always-on sweep
+    api-key: ${AMADEUS_API_KEY:}
+    api-secret: ${AMADEUS_API_SECRET:}
+  travelpayouts:
+    enabled: ${TRAVELPAYOUTS_ENABLED:false}  # real cached-fare source (Aviasales); free, generous limits
+    token: ${TRAVELPAYOUTS_TOKEN:}

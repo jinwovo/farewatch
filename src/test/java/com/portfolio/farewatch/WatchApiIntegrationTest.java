@@ -57,7 +57,7 @@ class WatchApiIntegrationTest {
 				.andExpect(jsonPath("$.newPrices", hasSize(1)))
 				.andExpect(jsonPath("$.newPrices[0].source").value("SIMULATOR"))
 				.andExpect(jsonPath("$.lowestAmount").isNumber())
-				.andExpect(jsonPath("$.lowestDeepLink", containsString("simulator")))
+				.andExpect(jsonPath("$.lowestDeepLink", containsString("google.com/travel/flights")))
 				.andExpect(jsonPath("$.newLow").value(true));
 
 		// Second poll appends to the time-series.
