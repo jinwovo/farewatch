@@ -32,14 +32,30 @@ management:
       probes:
         enabled: true
 
-# Distributed price-watch sweep (P2): runs hourly, guarded by a Redis lock so only
-# one instance polls each due watch. The scheduled trigger defaults to hourly.
+# Distributed price-watch sweep. Design for scale: a FREQUENT, CHEAP heartbeat (every
+# minute) rather than a rare hourly burst. When nothing is due the tick is ~free (a Redis
+# lock + one indexed query returning 0 rows); when work IS due it is bounded to
+# budget-per-tick, so load stays smooth no matter how many watches exist.
+#
+# Two independent knobs decide "how often is a price refreshed":
+#   - per-watch `pollIntervalMin` (default 60, min 5) = the user's desired freshness.
+#   - interval-ms (this tick) = how quickly a now-due watch gets picked up (latency ≤ 1 tick).
+# So a watch refreshes ≈ every pollIntervalMin, and the 1-min tick keeps pickup latency low.
+#
+# Scaling math (single instance): enqueue ceiling = budget-per-tick / interval
+#   = 100 watches / minute ≈ 6,000 watches/hour. Past that, the adaptive scorer (departure
+#   proximity + staleness + volatility) keeps the IMPORTANT watches fresh and defers the rest
+#   (their staleness rises → served on a later tick — backpressure, not failure). To grow:
+#   raise SWEEP_BUDGET, add app instances (queue sharding splits the drain), and the
+#   per-source token bucket + circuit breaker shield the external fare APIs from the bigger load.
 farewatch:
   sweep:
-    interval-ms: ${SWEEP_INTERVAL_MS:3600000}
-    initial-delay-ms: ${SWEEP_INITIAL_DELAY_MS:3600000}
+    interval-ms: ${SWEEP_INTERVAL_MS:60000}          # 1-min heartbeat: low pickup latency, cheap when idle
+    initial-delay-ms: ${SWEEP_INITIAL_DELAY_MS:15000} # start sweeping ~15s after boot
     lock-ttl-ms: ${SWEEP_LOCK_TTL_MS:300000}
-    budget-per-tick: ${SWEEP_BUDGET:100}     # adaptive: max watches polled per tick (highest-value first)
+    budget-per-tick: ${SWEEP_BUDGET:100}             # adaptive: max watches polled per tick (highest-value first)
+    reclaim-min-idle-ms: ${SWEEP_RECLAIM_MIN_IDLE_MS:120000} # crash recovery: reclaim a dead worker's job after 2m idle
+    max-deliveries: ${SWEEP_MAX_DELIVERIES:5}        # give up (→ dead-letter queue) after this many failed deliveries
   rate-limit:
     per-sec: ${RL_PER_SEC:1000}              # per-source token-bucket rate
     burst: ${RL_BURST:1000}

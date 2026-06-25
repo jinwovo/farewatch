@@ -58,4 +58,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Production sweeps on a 1-min heartbeat (starts ~15s after boot). Tests run longer than
+	// that, and a background sweep would poll the watches a test just created and break its
+	// exact-count assertions. System properties outrank application.yml, so push the trigger
+	// far out for tests only — the scheduler never fires; tests drive sweep.run()/drain() directly.
+	systemProperty 'farewatch.sweep.initial-delay-ms', '3600000'
+	systemProperty 'farewatch.sweep.interval-ms', '3600000'
 }
