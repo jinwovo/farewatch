@@ -102,7 +102,7 @@ public class AmadeusFareProvider implements FarePriceProvider {
 		String cur = (best.price() != null && best.price().currency() != null) ? best.price().currency() : currency;
 		LocalDate departDate = departDate(best, q.departDateFrom());
 		LocalDate returnDate = q.tripType() == TripType.ROUND_TRIP ? q.returnDateFrom() : null;
-		String deepLink = googleFlightsLink(q.origin(), q.destination(), departDate, returnDate);
+		String deepLink = DeepLinks.googleFlights(q.origin(), q.destination(), departDate, returnDate);
 		return Optional.of(new FareQuote(CODE, bestAmount, cur, departDate, returnDate, deepLink));
 	}
 
@@ -167,12 +167,6 @@ public class AmadeusFareProvider implements FarePriceProvider {
 
 	private static String enc(String s) {
 		return URLEncoder.encode(s, StandardCharsets.UTF_8);
-	}
-
-	private static String googleFlightsLink(String origin, String dest, LocalDate depart, LocalDate ret) {
-		String q = "Flights from " + origin.toUpperCase() + " to " + dest.toUpperCase() + " on " + depart
-				+ (ret != null ? " returning " + ret : "");
-		return "https://www.google.com/travel/flights?q=" + URLEncoder.encode(q, StandardCharsets.UTF_8);
 	}
 
 	// --- minimal slices of the Amadeus JSON we actually read (Jackson ignores the rest) ---

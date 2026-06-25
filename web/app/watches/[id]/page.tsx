@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Alert, BuySignal, CalendarCell, PollResult, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
+import type { Alert, BuySignal, CalendarCell, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
 import PriceHeatmap from '@/components/PriceHeatmap';
 
@@ -18,8 +18,6 @@ export default function WatchDetailPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [weather, setWeather] = useState<WeatherEstimate[]>([]);
   const [signal, setSignal] = useState<BuySignal | null>(null);
-  const [poll, setPoll] = useState<PollResult | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -46,20 +44,6 @@ export default function WatchDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function doPoll() {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await api.pollWatch(id);
-      setPoll(result);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
   const fmtT = (t?: string | null) => (t ? t.slice(0, 5) : '');
@@ -92,9 +76,6 @@ export default function WatchDetailPage() {
                 {retTime} · 알림 {watch.alertRule}
               </div>
             </div>
-            <button className="btn btn-primary" onClick={doPoll} disabled={busy}>
-              {busy ? '폴링 중…' : '지금 폴 ↻'}
-            </button>
           </div>
 
           <div className="lowprice">
@@ -174,14 +155,6 @@ export default function WatchDetailPage() {
                 </section>
               );
             })()}
-
-          {poll && (
-            <p className={poll.newLow ? 'flash low' : 'flash'}>
-              {poll.newLow
-                ? `🎉 새 최저가 갱신! ${fmt(poll.lowestAmount)} ${poll.lowestCurrency ?? ''}`
-                : `이번 폴은 갱신 없음 · 현재 최저 ${fmt(poll.lowestAmount)} ${poll.lowestCurrency ?? ''}`}
-            </p>
-          )}
 
           {alerts.length > 0 && (
             <section className="card">

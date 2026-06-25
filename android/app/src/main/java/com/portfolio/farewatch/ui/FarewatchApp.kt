@@ -38,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +69,6 @@ import com.portfolio.farewatch.ui.theme.Stone
 import com.portfolio.farewatch.ui.theme.SuccessBg
 import com.portfolio.farewatch.ui.theme.SuccessText
 import com.portfolio.farewatch.ui.theme.Surface
-import kotlinx.coroutines.launch
 
 private val White = CanvasWhite
 
@@ -200,7 +198,6 @@ fun cabinKo(c: String) = when (c) {
 
 @Composable
 fun WatchDetailScreen(id: String, onBack: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var watch by remember { mutableStateOf<Watch?>(null) }
     var prices by remember { mutableStateOf<List<PricePoint>>(emptyList()) }
@@ -208,7 +205,6 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     var weather by remember { mutableStateOf<List<WeatherEstimate>>(emptyList()) }
     var calendar by remember { mutableStateOf<List<CalendarCell>>(emptyList()) }
     var signal by remember { mutableStateOf<BuySignal?>(null) }
-    var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     suspend fun reload() {
@@ -272,23 +268,6 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
         }
 
         signal?.let { if (it.recommendation != "NO_DATA") BuySignalCard(it) }
-
-        PillButton(
-            if (busy) "폴링 중…" else "지금 폴",
-            onClick = {
-                scope.launch {
-                    busy = true
-                    try {
-                        ApiClient.api.poll(id); reload()
-                    } catch (e: Exception) {
-                        error = e.message
-                    } finally {
-                        busy = false
-                    }
-                }
-            },
-            enabled = !busy,
-        )
 
         if (prices.isNotEmpty()) {
             SectionTitle("가격 인사이트")

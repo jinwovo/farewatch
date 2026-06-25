@@ -67,9 +67,7 @@ public class SimulatorFareProvider implements FarePriceProvider {
 
 		int pax = Math.max(1, q.passengers());
 		long amount = Math.round(total * pax / 100.0) * 100; // round to nearest 100
-		String deepLink = "https://book.simulator.example/?o=" + q.origin().toUpperCase()
-				+ "&d=" + q.destination().toUpperCase() + "&date=" + bestDepart
-				+ (bestReturn != null ? "&ret=" + bestReturn : "");
+		String deepLink = DeepLinks.googleFlights(q.origin(), q.destination(), bestDepart, bestReturn);
 		return Optional.of(new FareQuote(CODE, BigDecimal.valueOf(amount), currency, bestDepart, bestReturn, deepLink));
 	}
 
