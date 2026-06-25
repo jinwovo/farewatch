@@ -29,6 +29,10 @@
 | **검색/생성** (공항·2개월 캘린더) | **한국어 자동완성** (서울 → GMP/ICN) | **시간대·좌석** (프리셋 + 직접 지정) |
 | ![android-search](docs/demo/android-search.png) | ![android-korean](docs/demo/android-search-korean.png) | ![android-time](docs/demo/android-search-2.png) |
 
+| **왕복** — 가는/오는 날 범위 + 가는 편·오는 편 **두 개의 출발 시간대** |
+|:--:|
+| ![android-roundtrip](docs/demo/android-search-roundtrip.png) |
+
 ---
 
 ## 문제 (Problem)
