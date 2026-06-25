@@ -61,6 +61,18 @@ data class PollResult(
     val newLow: Boolean,
 )
 
+data class BuySignal(
+    val recommendation: String, // BUY / WAIT / CONSIDER / NO_DATA
+    val score: Int,
+    val currentAmount: Double,
+    val lowestAmount: Double,
+    val percentile: Double,
+    val trendPct: Double,
+    val volatilityPct: Double,
+    val daysToDeparture: Long,
+    val reason: String,
+)
+
 data class Airport(
     val iata: String,
     val name: String,

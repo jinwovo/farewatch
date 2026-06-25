@@ -3,11 +3,13 @@ package com.portfolio.farewatch.web;
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.notify.NotificationDispatcher;
 import com.portfolio.farewatch.repo.AirportRepository;
+import com.portfolio.farewatch.service.BuySignalService;
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
 import com.portfolio.farewatch.weather.WeatherEstimate;
 import com.portfolio.farewatch.weather.WeatherService;
 import com.portfolio.farewatch.web.dto.AlertResponse;
+import com.portfolio.farewatch.web.dto.BuySignal;
 import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.PollResultResponse;
@@ -36,15 +38,17 @@ public class WatchController {
 	private final NotificationDispatcher notificationDispatcher;
 	private final WeatherService weatherService;
 	private final AirportRepository airports;
+	private final BuySignalService buySignalService;
 
 	public WatchController(WatchService watchService, PollService pollService,
 			NotificationDispatcher notificationDispatcher, WeatherService weatherService,
-			AirportRepository airports) {
+			AirportRepository airports, BuySignalService buySignalService) {
 		this.watchService = watchService;
 		this.pollService = pollService;
 		this.notificationDispatcher = notificationDispatcher;
 		this.weatherService = weatherService;
 		this.airports = airports;
+		this.buySignalService = buySignalService;
 	}
 
 	/** Map a watch to its response, enriched with origin/destination airport display names. */
@@ -101,5 +105,10 @@ public class WatchController {
 	@GetMapping("/{id}/weather")
 	public List<WeatherEstimate> weather(@PathVariable UUID id) {
 		return weatherService.forWatch(id);
+	}
+
+	@GetMapping("/{id}/signal")
+	public BuySignal signal(@PathVariable UUID id) {
+		return buySignalService.signalFor(id);
 	}
 }

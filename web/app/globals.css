@@ -125,6 +125,19 @@ input:focus, select:focus { outline: none; border: 2px solid var(--blue-deep); p
 .ins-s.high { color: var(--coral); font-weight: 600; }
 .ins-s.low { color: var(--success-text); font-weight: 600; }
 
+/* buy signal */
+.signal { border: 1px solid var(--hairline); border-left: 5px solid var(--stone); border-radius: 16px; padding: 20px 22px; }
+.signal.sig-buy { border-left-color: var(--success-text); background: var(--success-bg); }
+.signal.sig-wait { border-left-color: var(--blue-deep); background: #eff5ff; }
+.signal.sig-consider { border-left-color: #d9a400; background: #fff9ec; }
+.sig-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sig-badge { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.sig-score { font-size: 14px; color: var(--steel); font-weight: 500; }
+.sig-score b { font-size: 22px; font-weight: 700; color: var(--ink); }
+.sig-score i { font-style: normal; color: var(--stone); font-size: 13px; }
+.sig-reason { font-size: 15px; font-weight: 500; margin: 10px 0 8px; line-height: 1.5; }
+.sig-facts { font-size: 13px; color: var(--steel); }
+
 /* chart */
 .chart { width: 100%; height: auto; display: block; }
 .chart .axis { stroke: var(--hairline); stroke-width: 1; }

@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portfolio.farewatch.api.Alert
 import com.portfolio.farewatch.api.ApiClient
+import com.portfolio.farewatch.api.BuySignal
 import com.portfolio.farewatch.api.CalendarCell
 import com.portfolio.farewatch.api.PricePoint
 import com.portfolio.farewatch.api.Watch
@@ -206,6 +207,7 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     var alerts by remember { mutableStateOf<List<Alert>>(emptyList()) }
     var weather by remember { mutableStateOf<List<WeatherEstimate>>(emptyList()) }
     var calendar by remember { mutableStateOf<List<CalendarCell>>(emptyList()) }
+    var signal by remember { mutableStateOf<BuySignal?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -216,6 +218,7 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             alerts = ApiClient.api.alerts(id)
             weather = ApiClient.api.weather(id)
             calendar = ApiClient.api.calendar(id)
+            signal = ApiClient.api.signal(id)
         } catch (e: Exception) {
             error = e.message
         }
@@ -268,6 +271,8 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             }
         }
 
+        signal?.let { if (it.recommendation != "NO_DATA") BuySignalCard(it) }
+
         PillButton(
             if (busy) "폴링 중…" else "지금 폴",
             onClick = {
@@ -312,6 +317,31 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun BuySignalCard(s: BuySignal) {
+    val accent: androidx.compose.ui.graphics.Color
+    val bg: androidx.compose.ui.graphics.Color
+    val label: String
+    when (s.recommendation) {
+        "BUY" -> { accent = SuccessText; bg = SuccessBg; label = "🟢 지금 사세요" }
+        "WAIT" -> { accent = androidx.compose.ui.graphics.Color(0xFF1D4ED8); bg = androidx.compose.ui.graphics.Color(0xFFEFF5FF); label = "🔵 기다려도 OK" }
+        else -> { accent = androidx.compose.ui.graphics.Color(0xFFB8860B); bg = androidx.compose.ui.graphics.Color(0xFFFFF9EC); label = "🟡 고민해보세요" }
+    }
+    Column(Modifier.fillMaxWidth().background(bg, RoundedCornerShape(16.dp)).padding(20.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text("딜 스코어 ${s.score}", color = Steel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(s.reason, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "현재 ${"%,d".format(s.currentAmount.toLong())} · 이보다 쌌던 적 ${s.percentile.toInt()}% · 추세 ${if (s.trendPct > 0) "+" else ""}${s.trendPct}% · 출발 ${s.daysToDeparture}일 전",
+            color = Steel, fontSize = 12.sp,
+        )
+    }
 }
 
 @Composable

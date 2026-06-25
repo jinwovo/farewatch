@@ -99,6 +99,20 @@ export interface WeatherEstimate {
   source: WeatherSource;
 }
 
+export type Recommendation = 'BUY' | 'WAIT' | 'CONSIDER' | 'NO_DATA';
+
+export interface BuySignal {
+  recommendation: Recommendation;
+  score: number;
+  currentAmount: number;
+  lowestAmount: number;
+  percentile: number;
+  trendPct: number;
+  volatilityPct: number;
+  daysToDeparture: number;
+  reason: string;
+}
+
 export interface CreateWatchInput {
   userRef: string;
   origin: string;
@@ -155,4 +169,6 @@ export const api = {
     fetch(`/api/watches/${id}/alerts`, { cache: 'no-store' }).then((r) => unwrap<Alert[]>(r)),
   getWeather: (id: string): Promise<WeatherEstimate[]> =>
     fetch(`/api/watches/${id}/weather`, { cache: 'no-store' }).then((r) => unwrap<WeatherEstimate[]>(r)),
+  getSignal: (id: string): Promise<BuySignal> =>
+    fetch(`/api/watches/${id}/signal`, { cache: 'no-store' }).then((r) => unwrap<BuySignal>(r)),
 };

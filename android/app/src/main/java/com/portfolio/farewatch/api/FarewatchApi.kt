@@ -34,6 +34,9 @@ interface FarewatchApi {
     @GET("api/watches/{id}/weather")
     suspend fun weather(@Path("id") id: String): List<WeatherEstimate>
 
+    @GET("api/watches/{id}/signal")
+    suspend fun signal(@Path("id") id: String): BuySignal
+
     @POST("api/watches/{id}/poll")
     suspend fun poll(@Path("id") id: String): PollResult
 }

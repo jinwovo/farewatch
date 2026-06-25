@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Alert, CalendarCell, PollResult, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
+import type { Alert, BuySignal, CalendarCell, PollResult, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
 import PriceHeatmap from '@/components/PriceHeatmap';
 
@@ -17,24 +17,27 @@ export default function WatchDetailPage() {
   const [calendar, setCalendar] = useState<CalendarCell[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [weather, setWeather] = useState<WeatherEstimate[]>([]);
+  const [signal, setSignal] = useState<BuySignal | null>(null);
   const [poll, setPoll] = useState<PollResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [w, p, c, al, wx] = await Promise.all([
+      const [w, p, c, al, wx, sig] = await Promise.all([
         api.getWatch(id),
         api.getPrices(id),
         api.getCalendar(id),
         api.getAlerts(id),
         api.getWeather(id),
+        api.getSignal(id),
       ]);
       setWatch(w);
       setPrices(p);
       setCalendar(c);
       setAlerts(al);
       setWeather(wx);
+      setSignal(sig);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -60,6 +63,7 @@ export default function WatchDetailPage() {
 
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
   const fmtT = (t?: string | null) => (t ? t.slice(0, 5) : '');
+  const recLabel = (r: string) => (r === 'BUY' ? '🟢 지금 사세요' : r === 'WAIT' ? '🔵 기다려도 OK' : '🟡 고민해보세요');
   const lowest = prices.length ? Math.min(...prices.map((p) => p.amount)) : null;
   const lowestPp = lowest != null ? prices.find((p) => p.amount === lowest) ?? null : null;
   const isRound = watch?.tripType === 'ROUND_TRIP';
@@ -112,6 +116,24 @@ export default function WatchDetailPage() {
               </div>
             )}
           </div>
+
+          {signal && signal.recommendation !== 'NO_DATA' && (
+            <section className={`signal sig-${signal.recommendation.toLowerCase()}`}>
+              <div className="sig-head">
+                <span className="sig-badge">{recLabel(signal.recommendation)}</span>
+                <span className="sig-score">
+                  딜 스코어 <b>{signal.score}</b>
+                  <i>/100</i>
+                </span>
+              </div>
+              <p className="sig-reason">{signal.reason}</p>
+              <div className="sig-facts">
+                현재 {fmt(signal.currentAmount)} {watch.currency} · 이보다 쌌던 적 {Math.round(signal.percentile)}% · 추세{' '}
+                {signal.trendPct > 0 ? '+' : ''}
+                {signal.trendPct}% · 변동성 {signal.volatilityPct}% · 출발 {signal.daysToDeparture}일 전
+              </div>
+            </section>
+          )}
 
           {prices.length > 0 &&
             (() => {
