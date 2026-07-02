@@ -5,6 +5,7 @@ import com.portfolio.farewatch.domain.PricePoint;
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.repo.PriceAlertRepository;
 import com.portfolio.farewatch.repo.PricePointRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -33,12 +34,14 @@ public class AlertService {
 	private final PriceAlertRepository alerts;
 	private final PricePointRepository pricePoints;
 	private final NotificationService notifications;
+	private final MeterRegistry metrics;
 
 	public AlertService(PriceAlertRepository alerts, PricePointRepository pricePoints,
-			NotificationService notifications) {
+			NotificationService notifications, MeterRegistry metrics) {
 		this.alerts = alerts;
 		this.pricePoints = pricePoints;
 		this.notifications = notifications;
+		this.metrics = metrics;
 	}
 
 	public Optional<PriceAlert> evaluate(Watch watch, PricePoint lowest, BigDecimal previousLow) {
@@ -55,6 +58,9 @@ public class AlertService {
 		alert.setMistakeFare(isAnomaly(watch, lowest.getAmount()));
 		PriceAlert saved = alerts.save(alert);
 		notifications.createForAlert(saved, watch); // transactional outbox (same tx as the alert)
+		metrics.counter("farewatch.alerts.fired",
+				"rule", watch.getAlertRule().name(),
+				"mistake_fare", String.valueOf(saved.isMistakeFare())).increment();
 		return Optional.of(saved);
 	}
 

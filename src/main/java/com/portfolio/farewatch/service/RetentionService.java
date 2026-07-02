@@ -1,6 +1,7 @@
 package com.portfolio.farewatch.service;
 
 import com.portfolio.farewatch.lock.RedisDistributedLock;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -77,13 +78,14 @@ public class RetentionService {
 	private final JdbcTemplate jdbc;
 	private final TransactionTemplate tx;
 	private final RedisDistributedLock lock;
+	private final MeterRegistry metrics;
 	private final boolean enabled;
 	private final int rawDays;
 	private final int maxDaysPerRun;
 	private final Duration lockTtl;
 
 	public RetentionService(JdbcTemplate jdbc, PlatformTransactionManager txManager,
-			RedisDistributedLock lock,
+			RedisDistributedLock lock, MeterRegistry metrics,
 			@Value("${farewatch.retention.enabled:true}") boolean enabled,
 			@Value("${farewatch.retention.raw-days:90}") int rawDays,
 			@Value("${farewatch.retention.max-days-per-run:30}") int maxDaysPerRun,
@@ -91,6 +93,7 @@ public class RetentionService {
 		this.jdbc = jdbc;
 		this.tx = new TransactionTemplate(txManager);
 		this.lock = lock;
+		this.metrics = metrics;
 		this.enabled = enabled;
 		this.rawDays = Math.max(1, rawDays);
 		this.maxDaysPerRun = Math.max(1, maxDaysPerRun);
@@ -135,6 +138,8 @@ public class RetentionService {
 				purged += counts[1];
 				days++;
 			}
+			metrics.counter("farewatch.retention.rolledup").increment(rolledUp);
+			metrics.counter("farewatch.retention.purged").increment(purged);
 			return new RetentionResult(true, days, rolledUp, purged);
 		}
 		finally {

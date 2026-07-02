@@ -55,7 +55,8 @@ class NotificationDispatchTest {
 	void retries_then_fails_after_max_attempts() {
 		Notification n = notifications.save(new Notification(newAlert(), Channel.PUSH));
 		NotificationDispatcher dispatcher = new NotificationDispatcher(
-				notifications, List.of(alwaysFails(Channel.PUSH)), 2);
+				notifications, List.of(alwaysFails(Channel.PUSH)),
+				new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), 2);
 
 		dispatcher.dispatch(10);
 		Notification afterFirst = notifications.findById(n.getId()).orElseThrow();

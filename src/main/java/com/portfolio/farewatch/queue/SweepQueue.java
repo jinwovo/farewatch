@@ -1,5 +1,7 @@
 package com.portfolio.farewatch.queue;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -38,10 +40,13 @@ public class SweepQueue {
 	private final StringRedisTemplate redis;
 	private final long streamMaxLen;
 
-	public SweepQueue(StringRedisTemplate redis,
+	public SweepQueue(StringRedisTemplate redis, MeterRegistry metrics,
 			@Value("${farewatch.sweep.stream-maxlen:50000}") long streamMaxLen) {
 		this.redis = redis;
 		this.streamMaxLen = streamMaxLen;
+		// queue depth + parked-forever jobs, sampled from Redis at scrape time
+		Gauge.builder("farewatch.queue.depth", this, SweepQueue::streamSize).register(metrics);
+		Gauge.builder("farewatch.queue.dlq", this, SweepQueue::deadLetterSize).register(metrics);
 	}
 
 	@PostConstruct
