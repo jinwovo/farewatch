@@ -63,6 +63,7 @@ export default function WatchDetailPage() {
     <div className="stack">
       <Link href="/" className="muted">← 목록</Link>
       {error && <p className="error">{error}</p>}
+      {!watch && !error && <p className="muted" style={{ padding: '40px 0' }}>불러오는 중…</p>}
       {watch && (
         <>
           <div className="detail-head">
