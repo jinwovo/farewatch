@@ -127,6 +127,16 @@ curl http://localhost:8101/actuator/health
 cd web && npm install && npm run dev
 ```
 
+실제 요금 소스(Travelpayouts)를 켜서 띄울 때는 (Windows):
+
+```powershell
+# .env의 토큰을 환경변수로 주입 + 컨테이너 기동 + 메모리 바운드 jar 실행
+# (Spring은 .env를 읽지 않으므로 맨손 java -jar는 소스가 조용히 no-op이 된다)
+.\run.ps1          # -Build 로 bootJar 재빌드
+```
+
+메트릭은 `GET /actuator/prometheus` — 소스별 호출 지연/성공/스킵, 큐 깊이/DLQ, 알림 발송, 리텐션 등 `farewatch.*` 시리즈.
+
 ### API (P1)
 
 | 메서드 · 경로 | 설명 |
@@ -149,6 +159,7 @@ cd web && npm install && npm run dev
 - [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요 · 남음: Travelpayouts, 딜 점수, k3d 멀티팟*
 - [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅ · *남음: Grafana 대시보드*
 - [x] **고도화 (차별점)** — ① **매수 신호 + 딜 스코어**(투명 통계 모델, 웹·Android) ② **에러요금 이상탐지**(z-score, 🔥 우선 알림) ③ **큐 장애복구**(XPENDING+XCLAIM reclaim + DLQ, 카오스 테스트) ✅
+- [x] **운영 고도화** — ① **가격이력 리텐션**: raw 90일 + 일별 롤업(`price_point_daily`, min/max/avg/count) 후 purge → *테이블이 시간에 비례해 자라지 않는다*; 알림 근거 행은 영구 보존, 역대최저가는 raw∪롤업 병합(`PriceHistoryService`)으로 리텐션 경계에서도 정확 ② **Micrometer 메트릭**: 소스별 지연·성공/스킵, 큐 깊이·DLQ 게이지, 알림 발송, 스윕/리텐션 카운터 → `/actuator/prometheus` ③ `run.ps1` 런처(.env 주입 — Spring은 .env를 안 읽는다) ✅
 
 ## ADR
 
