@@ -5,6 +5,7 @@ import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.repo.PricePointRepository;
 import com.portfolio.farewatch.repo.WatchRepository;
 import com.portfolio.farewatch.web.dto.BuySignal;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -28,10 +29,13 @@ public class BuySignalService {
 
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
+	private final PriceHistoryService priceHistory;
 
-	public BuySignalService(WatchRepository watches, PricePointRepository pricePoints) {
+	public BuySignalService(WatchRepository watches, PricePointRepository pricePoints,
+			PriceHistoryService priceHistory) {
 		this.watches = watches;
 		this.pricePoints = pricePoints;
+		this.priceHistory = priceHistory;
 	}
 
 	@Transactional(readOnly = true)
@@ -53,9 +57,9 @@ public class BuySignalService {
 		double[] a = pts.stream().mapToDouble(p -> p.getAmount().doubleValue()).toArray();
 		int n = a.length;
 		double current = a[n - 1];
-		// All-time low via the indexed (watch_id, amount) lookup — not a JVM scan of the window.
-		double lowest = pricePoints.findFirstByWatch_IdOrderByAmountAscObservedAtAsc(watchId)
-				.map(p -> p.getAmount().doubleValue()).orElse(current);
+		// All-time low across raw history AND rolled-up days (retention-safe) — indexed, not a JVM scan.
+		double lowest = priceHistory.allTimeLowAmount(watchId)
+				.map(BigDecimal::doubleValue).orElse(current);
 
 		double below = 0;
 		for (double v : a) {

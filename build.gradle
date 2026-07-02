@@ -64,4 +64,7 @@ tasks.named('test') {
 	// far out for tests only — the scheduler never fires; tests drive sweep.run()/drain() directly.
 	systemProperty 'farewatch.sweep.initial-delay-ms', '3600000'
 	systemProperty 'farewatch.sweep.interval-ms', '3600000'
+	// Same story for the retention job: tests drive RetentionService.run() directly.
+	systemProperty 'farewatch.retention.initial-delay-ms', '3600000'
+	systemProperty 'farewatch.retention.interval-ms', '3600000'
 }

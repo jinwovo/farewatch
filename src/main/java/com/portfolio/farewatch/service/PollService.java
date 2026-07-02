@@ -35,14 +35,17 @@ public class PollService {
 	private final FareSourceRepository fareSources;
 	private final FareAggregator aggregator;
 	private final AlertService alertService;
+	private final PriceHistoryService priceHistory;
 
 	public PollService(WatchRepository watches, PricePointRepository pricePoints,
-			FareSourceRepository fareSources, FareAggregator aggregator, AlertService alertService) {
+			FareSourceRepository fareSources, FareAggregator aggregator, AlertService alertService,
+			PriceHistoryService priceHistory) {
 		this.watches = watches;
 		this.pricePoints = pricePoints;
 		this.fareSources = fareSources;
 		this.aggregator = aggregator;
 		this.alertService = alertService;
+		this.priceHistory = priceHistory;
 	}
 
 	@Transactional
@@ -50,10 +53,9 @@ public class PollService {
 		Watch w = watches.findById(watchId)
 				.orElseThrow(() -> new NoSuchElementException("watch not found: " + watchId));
 
-		BigDecimal lowestBefore = pricePoints
-				.findFirstByWatch_IdOrderByAmountAscObservedAtAsc(watchId)
-				.map(PricePoint::getAmount)
-				.orElse(null);
+		// Historical low across raw AND rolled-up history — a price merely undercutting the
+		// recent raw window must not fire a "new low" alert (retention purges old raw rows).
+		BigDecimal lowestBefore = priceHistory.allTimeLowAmount(watchId).orElse(null);
 
 		List<FareQuote> quotes = aggregator.pollAll(FareQuery.from(w));
 		List<PricePoint> saved = new ArrayList<>();

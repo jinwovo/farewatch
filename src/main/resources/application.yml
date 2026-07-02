@@ -66,6 +66,17 @@ farewatch:
     cooldown-ms: ${CB_COOLDOWN_MS:30000}     # how long it stays open before a half-open probe
   notify:
     max-attempts: ${NOTIFY_MAX_ATTEMPTS:3}   # delivery retries before a notification is marked FAILED
+  # price_point retention: raw points kept raw-days, older days rolled up to price_point_daily
+  # (min/max/avg/count per watch per UTC day) then purged — the table stops growing with time.
+  # Alert-referenced rows are exempt (alert evidence is immortal). Hourly check is ~free when
+  # there is nothing older than the window (one indexed min() scan behind the Redis lock).
+  retention:
+    enabled: ${RETENTION_ENABLED:true}
+    raw-days: ${RETENTION_RAW_DAYS:90}
+    interval-ms: ${RETENTION_INTERVAL_MS:3600000}
+    initial-delay-ms: ${RETENTION_INITIAL_DELAY_MS:90000}
+    max-days-per-run: ${RETENTION_MAX_DAYS_PER_RUN:30}   # backlog drains over a few ticks, bounded tx each
+    lock-ttl-ms: ${RETENTION_LOCK_TTL_MS:600000}
   amadeus:
     enabled: ${AMADEUS_ENABLED:false}        # real GDS source; metered free tier → keep off the always-on sweep
     api-key: ${AMADEUS_API_KEY:}
