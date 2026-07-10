@@ -30,5 +30,35 @@ services:
       timeout: 3s
       retries: 10
 
+  # --- observability -----------------------------------------------------------------
+  # The backend runs on the HOST (run.ps1 / java -jar), so Prometheus scrapes it through
+  # host.docker.internal (extra_hosts). Grafana auto-provisions the datasource + the
+  # farewatch dashboard and runs anonymous read-only — open http://localhost:3004, no login.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: fw-prometheus
+    ports:
+      - "9096:9090"          # host 9096 -> 9090 (registry reserved 9092, moved off the Kafka clash)
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: fw-grafana
+    ports:
+      - "3004:3000"          # host 3004 (registry-allocated) -> container 3000
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: "dark"
+    volumes:
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+
 volumes:
   fw-pgdata:

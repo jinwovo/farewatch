@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # The farewatch backend runs on the HOST (run.ps1 / java -jar :8101), not in a container,
+  # so Prometheus reaches it across the container boundary via host.docker.internal (compose
+  # maps it with extra_hosts: host-gateway).
+  #
+  # TWO targets are listed on purpose: the same config visualises the distributed story. Start
+  # a second instance on :8102 (run-cluster.ps1 -Instances 2) and its share of the sharded
+  # Redis-Streams sweep drain shows up per-instance with zero edits. A target that is down just
+  # reports up=0 — the dashboard's "instances" stat counts only up==1, so a single instance
+  # renders cleanly too.
+  - job_name: farewatch
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 'host.docker.internal:8101'
+          - 'host.docker.internal:8102'

@@ -31,6 +31,14 @@ management:
     health:
       probes:
         enabled: true
+  metrics:
+    distribution:
+      # Publish histogram buckets so Grafana can draw true p95/p99 via histogram_quantile().
+      # Micrometer timers ship only count+sum by default → without buckets the latency panels
+      # render "No data". Enabled for the per-source fare-call timer and the HTTP server timer.
+      percentiles-histogram:
+        farewatch.source.calls: true
+        http.server.requests: true
 
 # Distributed price-watch sweep. Design for scale: a FREQUENT, CHEAP heartbeat (every
 # minute) rather than a rare hourly burst. When nothing is due the tick is ~free (a Redis

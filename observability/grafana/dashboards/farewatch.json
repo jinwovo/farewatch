@@ -1,0 +1,211 @@
+{
+  "uid": "farewatch-main",
+  "title": "farewatch — distributed sweep & ops",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "timezone": "browser",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "instances (live)",
+      "description": "app instances Prometheus is scraping with up==1 — every instance runs the sweep and drains its share of the shared Redis-Streams queue",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "count(up{job=\"farewatch\"} == 1)" } ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "poll throughput",
+      "description": "watches polled per second = rate of jobs drained off the queue, summed across instances",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "decimals": 2, "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_sweep_drained_total[1m]))" } ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "queue stream (XLEN)",
+      "description": "entries on the Redis sweep stream (XLEN, ~trimmed at maxlen). Acked jobs linger in the stream until trimmed, so this rises under load and flattens at maxlen — the DLQ + recovered panels track genuinely stuck work.",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "max(farewatch_queue_depth)" } ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "dead-letter (DLQ)",
+      "description": "jobs parked after max failed deliveries — a poison job never blocks the queue",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "max(farewatch_queue_dlq)" } ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "alerts fired",
+      "description": "price-drop alerts written to the outbox (all-time)",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "sum(farewatch_alerts_fired_total)" } ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "mistake-fares 🔥",
+      "description": "alerts flagged as statistically anomalous lows (z ≤ -2.5) — the fare-error detector",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null }, { "color": "red", "value": 1 } ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [ { "refId": "A", "expr": "sum(farewatch_alerts_fired_total{mistake_fare=\"true\"})" } ]
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "sweep · poll throughput by instance",
+      "description": "each instance drains its own share of the shared Redis-Streams consumer group — no double-poll, and the shares sum to total throughput (horizontal scale)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 25, "lineWidth": 2, "stacking": { "mode": "normal", "group": "A" } } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_sweep_drained_total[1m])) by (instance)", "legendFormat": "{{instance}}" } ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "sweep · pipeline (per second)",
+      "description": "enqueued (due watches), drained (polled), deferred (backpressure — scorer skipped this tick), recovered (jobs reclaimed from a dead worker)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(farewatch_sweep_enqueued_total[1m]))", "legendFormat": "enqueued" },
+        { "refId": "B", "expr": "sum(rate(farewatch_sweep_drained_total[1m]))", "legendFormat": "drained" },
+        { "refId": "C", "expr": "sum(rate(farewatch_sweep_deferred_total[1m]))", "legendFormat": "deferred (backpressure)" },
+        { "refId": "D", "expr": "sum(rate(farewatch_sweep_recovered_total[1m]))", "legendFormat": "recovered (crash)" }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "source · call rate by outcome",
+      "description": "per-source fare calls/s tagged quote / empty / error — the multi-source aggregator fanning in",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_source_calls_seconds_count[1m])) by (source, outcome)", "legendFormat": "{{source}} · {{outcome}}" } ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "source · latency p95",
+      "description": "per-source fare-call p95 from histogram buckets — the real network source (Travelpayouts) vs the in-process simulator",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum(rate(farewatch_source_calls_seconds_bucket[1m])) by (le, source))", "legendFormat": "{{source}} p95" } ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "source · skips (breaker / rate-limit)",
+      "description": "calls short-circuited before hitting the source — circuit_open (source is failing) or rate_limited (token bucket empty); these shield the external API",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_source_skips_total[1m])) by (source, reason)", "legendFormat": "{{source}} · {{reason}}" } ]
+    },
+
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "notifications · by channel & outcome",
+      "description": "dispatcher deliveries/s from the transactional outbox — sent / retry / failed per channel (push, email)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_notifications_total[1m])) by (channel, outcome)", "legendFormat": "{{channel}} · {{outcome}}" } ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "alerts · fire rate (normal vs mistake-fare)",
+      "description": "price-drop alerts/s split by the mistake_fare flag — normal drops vs suspected fare errors",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(rate(farewatch_alerts_fired_total[5m])) by (mistake_fare)", "legendFormat": "mistake_fare={{mistake_fare}}" } ]
+    },
+
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "http · request latency p95 by uri",
+      "description": "Spring MVC endpoint p95 from http_server_requests histogram buckets",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[1m])) by (le, uri))", "legendFormat": "{{uri}}" } ]
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "jvm · heap used by instance",
+      "description": "each instance is launched -Xmx-bounded so the fleet stays small on a shared host",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "refId": "A", "expr": "sum(jvm_memory_used_bytes{area=\"heap\"}) by (instance)", "legendFormat": "{{instance}}" } ]
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "retention (cumulative)",
+      "description": "price_point rows rolled up into daily aggregates and purged by the hourly retention job — the table stops growing with time",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "text" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name", "orientation": "horizontal" },
+      "targets": [
+        { "refId": "A", "expr": "sum(farewatch_retention_rolledup_total)", "legendFormat": "days rolled up" },
+        { "refId": "B", "expr": "sum(farewatch_retention_purged_total)", "legendFormat": "rows purged" }
+      ]
+    }
+  ]
+}

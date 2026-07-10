@@ -33,6 +33,14 @@
 |:--:|
 | ![android-roundtrip](docs/demo/android-search-roundtrip.png) |
 
+### 관측성 (Observability) — 분산 스윕을 눈으로
+
+Micrometer가 모든 핫패스에 심은 메트릭(`/actuator/prometheus`)을 **Prometheus + Grafana**(코드 프로비저닝, 익명 read-only `:3004`)로 시각화. 인스턴스를 2개 띄우면 **"poll throughput by instance"**에 두 계열이 쌓여 — *같은 워치를 중복 폴하지 않고* 처리량이 합산되는 게 보인다. 헤드라인 근육(분산 스케줄)의 시각적 증명.
+
+![grafana](docs/demo/grafana.png)
+
+> 라이브 캡처: instances=**2** · ~6 polls/s · 소스 p95(히스토그램 버킷) · 에러요금 🔥 · 알림 발송(PUSH/EMAIL) · JVM 힙 인스턴스별 2계열. 부하는 오프라인 Simulator로(실 API 쿼터 보호), `.\run-cluster.ps1 -Instances 2 -Simulator`로 재현. → [ADR-0004](docs/adr/0004-observability.md)
+
 ---
 
 ## 문제 (Problem)
@@ -84,6 +92,7 @@ flowchart LR
 - [x] 도착지 **날씨** — Open-Meteo 실예보(D-16) ↔ **평년값** 크로스오버 (라이브: 홍콩 8월 평년 30°C, 다낭 +9일 실예보 34°C)
 - [x] **Android(Compose) 앱 빌드** — Kotlin + Compose + Retrofit, `assembleDebug` → `app-debug.apk` 9.4MB (JDK 17, `android/`)
 - [x] **Amadeus 실어댑터** — OAuth2 토큰 + Flight Offers Search → 최저가 매핑 (AmadeusFareProviderTest, JDK HttpServer 스텁)
+- [x] **관측성** — Prometheus + Grafana **프로비저닝 대시보드(16패널)**, **인스턴스 2개 라이브**로 "poll throughput by instance" 분산 drain 합산 캡처(`docs/demo/grafana.png`) · 소스 p95 히스토그램 버킷 활성 (ADR-0004)
 - [ ] 웹 데모 GIF + Android 에뮬레이터 실행 녹화 (앱 빌드는 완료, 실행 시연만 남음)
 
 ## 스택 (Stack)
@@ -97,7 +106,7 @@ flowchart LR
 | 알림 | FCM 푸시 · Email · `dedup_key` 멱등 + 재시도 *(P3)* |
 | 외부 소스 | Amadeus · Travelpayouts · LCC 스크래퍼(Playwright) · Open-Meteo 날씨 |
 | 프론트 | 웹 Next.js · **Android Kotlin + Jetpack Compose** |
-| 관측 | Micrometer + `/actuator/prometheus` |
+| 관측 | Micrometer + `/actuator/prometheus` → **Prometheus + Grafana** 프로비저닝 대시보드 16패널 (호스트 스크랩 · 익명 read-only `:3004`) |
 | 테스트 | Testcontainers (`@ServiceConnection`) |
 
 ## 가격 소스 전략 (Sources)
@@ -137,6 +146,14 @@ cd web && npm install && npm run dev
 
 메트릭은 `GET /actuator/prometheus` — 소스별 호출 지연/성공/스킵, 큐 깊이/DLQ, 알림 발송, 리텐션 등 `farewatch.*` 시리즈.
 
+**관측성 스택**은 `docker compose up -d`에 포함(Prometheus `:9096` + Grafana `:3004`) — Grafana는 로그인 없이 열리고 farewatch 대시보드가 자동 프로비저닝된다. 인스턴스별 **분산 drain**을 눈으로 보려면:
+
+```powershell
+.\run-cluster.ps1 -Instances 2 -Simulator   # 2개 인스턴스(:8101,:8102) + 관측성, 오프라인 시뮬레이터 부하
+# → http://localhost:3004  "sweep · poll throughput by instance" 두 계열이 합산되는 것 확인
+.\stop-cluster.ps1                            # 인스턴스 + 관측성 정지 (pg/redis는 유지)
+```
+
 ### API (P1)
 
 | 메서드 · 경로 | 설명 |
@@ -156,13 +173,16 @@ cd web && npm install && npm run dev
 - [x] **P3 (알림)** — 트랜잭션 **아웃박스** + 디스패처(멱등 dedup · 재시도→FAILED) · 이메일/푸시 **멀티채널**(로그 sender, FCM/SMTP 드롭인) · `/alerts` 발송이력 ✅
 - [x] **Android (Compose) 앱** — Kotlin + Jetpack Compose + Retrofit 클라이언트, `assembleDebug` → APK (JDK 17) · 워치 목록·상세(가격·알림·날씨)·지금폴 · CI `android.yml` ✅ · *남음: FCM 푸시 수신(Firebase 설정 필요)*
 - [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅
-- [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요 · 남음: Travelpayouts, 딜 점수, k3d 멀티팟*
-- [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅ · *남음: Grafana 대시보드*
+- [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요*
+- [x] **Travelpayouts 실어댑터 + 딜 스코어** — 캐시 최저가(Aviasales) 실링크, `.env` 토큰 config-gated ✅ · 딜 스코어 = 매수 신호(고도화 ①)
+- [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅
 - [x] **고도화 (차별점)** — ① **매수 신호 + 딜 스코어**(투명 통계 모델, 웹·Android) ② **에러요금 이상탐지**(z-score, 🔥 우선 알림) ③ **큐 장애복구**(XPENDING+XCLAIM reclaim + DLQ, 카오스 테스트) ✅
 - [x] **운영 고도화** — ① **가격이력 리텐션**: raw 90일 + 일별 롤업(`price_point_daily`, min/max/avg/count) 후 purge → *테이블이 시간에 비례해 자라지 않는다*; 알림 근거 행은 영구 보존, 역대최저가는 raw∪롤업 병합(`PriceHistoryService`)으로 리텐션 경계에서도 정확 ② **Micrometer 메트릭**: 소스별 지연·성공/스킵, 큐 깊이·DLQ 게이지, 알림 발송, 스윕/리텐션 카운터 → `/actuator/prometheus` ③ `run.ps1` 런처(.env 주입 — Spring은 .env를 안 읽는다) ✅
+- [x] **관측성 고도화** — **Prometheus + Grafana**(`docker-compose`, 코드 프로비저닝, 익명 read-only `:3004`) · farewatch 대시보드 **16패널**(인스턴스별 폴 처리량 · 스윕 파이프라인 · 소스 p95/스킵 · 알림/에러요금 · 발송 · 리텐션 · JVM/HTTP) · p95 **히스토그램 버킷** 활성 · **멀티인스턴스 런처**(`run-cluster.ps1`) → 인스턴스 2개 라이브로 **분산 drain 합산** 캡처(`docs/demo/grafana.png`) · [ADR-0004](docs/adr/0004-observability.md) ✅ · *남음: k3d 멀티팟(분산 exactly-once는 통합테스트 + `by(instance)` 대시보드로 증명됨)*
 
 ## ADR
 
 - [ADR-0001 — ADR 시작 & 스택/포트](docs/adr/0001-record-architecture-decisions.md)
 - [ADR-0002 — 멀티소스 운임 애그리게이터 & 소스 전략](docs/adr/0002-multi-source-fare-aggregator.md)
 - [ADR-0003 — 분산 폴링: ShedLock → Redis Streams](docs/adr/0003-distributed-polling.md)
+- [ADR-0004 — 관측성: Prometheus + Grafana](docs/adr/0004-observability.md)
