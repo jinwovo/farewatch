@@ -1,21 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Watch } from '@/lib/api';
+import type { BuySignal, WatchSummary } from '@/lib/api';
+import { timeAgo } from '@/lib/time';
 import SearchBar from '@/components/SearchBar';
+import Sparkline from '@/components/Sparkline';
+
+type SortKey = 'recent' | 'price' | 'score';
+
+const fmt = (v: number) => Math.round(v).toLocaleString('ko-KR');
+const shortDate = (s: string) => s.slice(5).replace('-', '.');
+
+function SignalChip({ signal }: { signal: BuySignal }) {
+  if (signal.daysToDeparture < 0) {
+    return <span className="chip chip-nodata">🗓 지난 일정</span>; // departed — nothing left to buy
+  }
+  if (signal.recommendation === 'NO_DATA') {
+    return <span className="chip chip-nodata">📡 수집 중</span>;
+  }
+  const label =
+    signal.recommendation === 'BUY' ? '지금 사세요' : signal.recommendation === 'WAIT' ? '기다려보세요' : '고민해보세요';
+  return (
+    <span className={`chip chip-${signal.recommendation.toLowerCase()}`}>
+      {label} · {signal.score}
+    </span>
+  );
+}
 
 export default function HomePage() {
-  const [watches, setWatches] = useState<Watch[]>([]);
+  const [items, setItems] = useState<WatchSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>('recent');
 
   async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      setWatches(await api.listWatches());
+      setItems(await api.getSummaries());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -26,6 +50,31 @@ export default function HomePage() {
   useEffect(() => {
     refresh();
   }, []);
+
+  async function toggleActive(e: MouseEvent, s: WatchSummary) {
+    e.preventDefault(); // the button lives inside the card <Link>
+    e.stopPropagation();
+    const next = !s.watch.active;
+    setItems((prev) =>
+      prev.map((it) => (it.watch.id === s.watch.id ? { ...it, watch: { ...it.watch, active: next } } : it)),
+    );
+    try {
+      await api.updateWatch(s.watch.id, { active: next });
+    } catch {
+      refresh(); // roll back the optimistic flip
+    }
+  }
+
+  const sorted = useMemo(() => {
+    const arr = [...items];
+    if (sort === 'price') {
+      arr.sort((a, b) => (a.latestAmount ?? Infinity) - (b.latestAmount ?? Infinity));
+    } else if (sort === 'score') {
+      const score = (s: WatchSummary) => (s.signal.recommendation === 'NO_DATA' ? -1 : s.signal.score);
+      arr.sort((a, b) => score(b) - score(a));
+    }
+    return arr; // 'recent': server order (newest first)
+  }, [items, sort]);
 
   return (
     <div className="stack">
@@ -43,33 +92,117 @@ export default function HomePage() {
       <section>
         <div className="section-head">
           <h2>내 워치</h2>
-          {watches.length > 0 && <span className="muted">{watches.length}개</span>}
+          {items.length > 0 && (
+            <div className="list-tools">
+              <span className="muted">{items.length}개</span>
+              <div className="sorttabs" role="tablist" aria-label="정렬">
+                {(
+                  [
+                    ['recent', '최신순'],
+                    ['price', '가격순'],
+                    ['score', '딜점수순'],
+                  ] as [SortKey, string][]
+                ).map(([k, label]) => (
+                  <button key={k} type="button" className={sort === k ? 'active' : ''} onClick={() => setSort(k)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        {loading && <p className="muted">불러오는 중…</p>}
+
         {error && <p className="error">백엔드 연결 실패: {error}</p>}
-        {!loading && !error && watches.length === 0 && (
+        {!loading && !error && items.length === 0 && (
           <p className="muted">아직 워치가 없어요. 위에서 하나 만들어 보세요.</p>
         )}
-        <ul className="cards">
-          {watches.map((w) => (
-            <li key={w.id}>
-              <Link href={`/watches/${w.id}`} className="watch-card">
-                <div className="route">
-                  {w.origin}
-                  <span className="arrow">→</span>
-                  {w.destination}
-                </div>
-                <div className="meta">
-                  {w.departDateFrom}
-                  {w.departDateTo !== w.departDateFrom ? ` ~ ${w.departDateTo}` : ''}
-                </div>
-                <div className="meta">
-                  {w.tripType === 'ROUND_TRIP' ? '왕복' : '편도'} · {w.cabin} · 알림 {w.alertRule}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+
+        {loading ? (
+          <ul className="cards">
+            {[0, 1, 2].map((i) => (
+              <li key={i}>
+                <div className="wcard-skel" />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="cards">
+            {sorted.map((s) => {
+              const w = s.watch;
+              const isRound = w.tripType === 'ROUND_TRIP';
+              const cities =
+                w.originKorean || w.destKorean
+                  ? `${w.originKorean ?? w.originName ?? w.origin} → ${w.destKorean ?? w.destName ?? w.destination}`
+                  : null;
+              const dates =
+                isRound && w.returnDateFrom
+                  ? `${shortDate(w.departDateFrom)} → ${shortDate(w.returnDateFrom)}`
+                  : `${shortDate(w.departDateFrom)}${w.departDateTo !== w.departDateFrom ? ` ~ ${shortDate(w.departDateTo)}` : ''}`;
+              const hasSignal = s.signal.recommendation !== 'NO_DATA' && s.signal.daysToDeparture >= 0;
+              const atLow = hasSignal && s.latestAmount != null && s.latestAmount <= s.signal.lowestAmount;
+              const overLowPct =
+                hasSignal && s.latestAmount != null && s.signal.lowestAmount > 0
+                  ? ((s.latestAmount - s.signal.lowestAmount) / s.signal.lowestAmount) * 100
+                  : null;
+              const ago = timeAgo(s.latestObservedAt);
+              return (
+                <li key={w.id}>
+                  <Link href={`/watches/${w.id}`} className={`watch-card wcard${w.active ? '' : ' inactive'}`}>
+                    <div className="wcard-top">
+                      <div className="wcard-head">
+                        <div className="route">
+                          {w.origin}
+                          <span className="arrow">→</span>
+                          {w.destination}
+                        </div>
+                        {cities && <div className="meta wcard-cities">{cities}</div>}
+                        <div className="meta">
+                          {dates} · {isRound ? '왕복' : '편도'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="iconbtn"
+                        title={w.active ? '추적 일시정지' : '추적 재개'}
+                        aria-label={w.active ? '추적 일시정지' : '추적 재개'}
+                        onClick={(e) => toggleActive(e, s)}
+                      >
+                        {w.active ? '⏸' : '▶'}
+                      </button>
+                    </div>
+
+                    <div className="wcard-mid">
+                      <div className="wcard-price">
+                        {s.latestAmount != null ? (
+                          <>
+                            <b>{fmt(s.latestAmount)}</b>
+                            <i>{w.currency}</i>
+                            {atLow ? (
+                              <span className="wcard-vs low">지금이 역대 최저가 🔥</span>
+                            ) : overLowPct != null ? (
+                              <span className="wcard-vs">
+                                역대 최저 {fmt(s.signal.lowestAmount)} · +{overLowPct.toFixed(1)}%
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="wcard-collecting">첫 가격을 수집하고 있어요…</span>
+                        )}
+                      </div>
+                      <Sparkline cells={s.spark} />
+                    </div>
+
+                    <div className="wcard-foot">
+                      <SignalChip signal={s.signal} />
+                      {!w.active && <span className="chip chip-paused">⏸ 일시정지</span>}
+                      {ago && <span className="ago">{ago} 확인</span>}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

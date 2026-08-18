@@ -40,6 +40,10 @@ export interface Watch {
   lastPolledAt?: string | null;
   nextPollAt: string;
   createdAt: string;
+  originKorean?: string | null;
+  originName?: string | null;
+  destKorean?: string | null;
+  destName?: string | null;
 }
 
 export interface PricePoint {
@@ -114,6 +118,24 @@ export interface BuySignal {
   reason: string;
 }
 
+export interface SparkCell {
+  day: string;
+  amount: number;
+}
+
+/** One home-dashboard card: the watch plus its live price/signal/sparkline. */
+export interface WatchSummary {
+  watch: Watch;
+  latestAmount: number | null;
+  latestObservedAt: string | null;
+  signal: BuySignal;
+  spark: SparkCell[];
+}
+
+export interface UpdateWatchInput {
+  active?: boolean;
+}
+
 export interface CreateWatchInput {
   userRef: string;
   origin: string;
@@ -150,6 +172,15 @@ export const api = {
   listWatches: (userRef?: string): Promise<Watch[]> =>
     fetch(`/api/watches${userRef ? `?userRef=${encodeURIComponent(userRef)}` : ''}`, { cache: 'no-store' })
       .then((r) => unwrap<Watch[]>(r)),
+  getSummaries: (userRef?: string): Promise<WatchSummary[]> =>
+    fetch(`/api/watches/summary${userRef ? `?userRef=${encodeURIComponent(userRef)}` : ''}`, { cache: 'no-store' })
+      .then((r) => unwrap<WatchSummary[]>(r)),
+  updateWatch: (id: string, body: UpdateWatchInput): Promise<Watch> =>
+    fetch(`/api/watches/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => unwrap<Watch>(r)),
   getWatch: (id: string): Promise<Watch> =>
     fetch(`/api/watches/${id}`, { cache: 'no-store' }).then((r) => unwrap<Watch>(r)),
   createWatch: (body: CreateWatchInput): Promise<Watch> =>

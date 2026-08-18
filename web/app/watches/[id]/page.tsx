@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import type { Alert, BuySignal, CalendarCell, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
@@ -11,8 +11,11 @@ import PriceHeatmap from '@/components/PriceHeatmap';
 export default function WatchDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const router = useRouter();
 
   const [watch, setWatch] = useState<Watch | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [calendar, setCalendar] = useState<CalendarCell[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -44,6 +47,30 @@ export default function WatchDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function toggleActive() {
+    if (!watch || busy) return;
+    setBusy(true);
+    try {
+      setWatch(await api.updateWatch(watch.id, { active: !watch.active }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeWatch() {
+    if (!watch || busy) return;
+    setBusy(true);
+    try {
+      await api.deleteWatch(watch.id);
+      router.push('/');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
 
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
   const fmtT = (t?: string | null) => (t ? t.slice(0, 5) : '');
@@ -77,7 +104,33 @@ export default function WatchDetailPage() {
                 {retTime} · 알림 {watch.alertRule}
               </div>
             </div>
+            <div className="detail-actions">
+              <button type="button" className="btn btn-secondary" onClick={toggleActive} disabled={busy}>
+                {watch.active ? '⏸ 일시정지' : '▶ 추적 재개'}
+              </button>
+              {confirmDelete ? (
+                <span className="confirm-inline">
+                  워치를 삭제할까요?
+                  <button type="button" className="btn btn-danger" onClick={removeWatch} disabled={busy}>
+                    삭제 확인
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)} disabled={busy}>
+                    취소
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="btn btn-ghost-danger" onClick={() => setConfirmDelete(true)}>
+                  삭제
+                </button>
+              )}
+            </div>
           </div>
+
+          {!watch.active && (
+            <p className="paused-note">
+              ⏸ 일시정지된 워치예요 — 가격 추적이 멈춰 있어요. ‘추적 재개’를 누르면 다음 스윕부터 다시 모아요.
+            </p>
+          )}
 
           <div className="lowprice">
             <div className="k">현재 최저가</div>
@@ -99,7 +152,7 @@ export default function WatchDetailPage() {
             )}
           </div>
 
-          {signal && signal.recommendation !== 'NO_DATA' && (
+          {signal && signal.recommendation !== 'NO_DATA' && signal.daysToDeparture >= 0 && (
             <section className={`signal sig-${signal.recommendation.toLowerCase()}`}>
               <div className="sig-head">
                 <span className="sig-badge">{recLabel(signal.recommendation)}</span>
