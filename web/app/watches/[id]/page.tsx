@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { Alert, BuySignal, CalendarCell, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
+import type { Alert, AlertRule, BuySignal, CalendarCell, PricePoint, Watch, WeatherEstimate } from '@/lib/api';
 import PriceChart from '@/components/PriceChart';
 import PriceHeatmap from '@/components/PriceHeatmap';
 
@@ -16,6 +16,11 @@ export default function WatchDetailPage() {
   const [watch, setWatch] = useState<Watch | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editRule, setEditRule] = useState(false);
+  const [draftRule, setDraftRule] = useState<AlertRule>('NEW_LOW');
+  const [draftThreshold, setDraftThreshold] = useState('');
+  const [draftDrop, setDraftDrop] = useState('');
+  const [ruleErr, setRuleErr] = useState<string | null>(null);
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [calendar, setCalendar] = useState<CalendarCell[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -72,6 +77,54 @@ export default function WatchDetailPage() {
     }
   }
 
+  function startRuleEdit() {
+    if (!watch) return;
+    setDraftRule(watch.alertRule);
+    setDraftThreshold(watch.thresholdAmount != null ? String(Math.round(watch.thresholdAmount)) : '');
+    setDraftDrop(watch.dropPct != null ? String(watch.dropPct) : '');
+    setRuleErr(null);
+    setEditRule(true);
+  }
+
+  async function saveRule() {
+    if (!watch || busy) return;
+    const body: { alertRule: AlertRule; thresholdAmount?: number; dropPct?: number } = { alertRule: draftRule };
+    if (draftRule === 'BELOW_THRESHOLD') {
+      const v = Number(draftThreshold.replace(/[,\s]/g, ''));
+      if (!Number.isFinite(v) || v <= 0) {
+        setRuleErr('목표가를 숫자로 입력해 주세요.');
+        return;
+      }
+      body.thresholdAmount = v;
+    }
+    if (draftRule === 'DROP_PCT') {
+      const v = Number(draftDrop.replace(/[,\s]/g, ''));
+      if (!Number.isFinite(v) || v <= 0 || v > 90) {
+        setRuleErr('하락률은 0보다 크고 90 이하의 숫자여야 해요.');
+        return;
+      }
+      body.dropPct = v;
+    }
+    setBusy(true);
+    setRuleErr(null);
+    try {
+      setWatch(await api.updateWatch(watch.id, body));
+      setEditRule(false);
+    } catch (e) {
+      setRuleErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const ruleName = (r: AlertRule) => (r === 'BELOW_THRESHOLD' ? '목표가' : r === 'DROP_PCT' ? '급락 감지' : '새 최저가');
+  const ruleDesc = (w: Watch) =>
+    w.alertRule === 'BELOW_THRESHOLD'
+      ? `목표가 ${w.thresholdAmount != null ? Math.round(w.thresholdAmount).toLocaleString('ko-KR') : '—'} ${w.currency} 이하로 내려오면 알림을 보내요.`
+      : w.alertRule === 'DROP_PCT'
+        ? `직전 최저가보다 ${w.dropPct}% 이상 급락하면 알림을 보내요.`
+        : '역대 최저가가 갱신될 때마다 알림을 보내요.';
+
   const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('ko-KR'));
   const fmtT = (t?: string | null) => (t ? t.slice(0, 5) : '');
   const recLabel = (r: string) => (r === 'BUY' ? '🟢 지금 사세요' : r === 'WAIT' ? '🔵 기다려도 OK' : '🟡 고민해보세요');
@@ -101,7 +154,7 @@ export default function WatchDetailPage() {
               <div className="meta">
                 {dateStr} · {isRound ? '왕복' : '편도'} · {watch.cabin} · 성인 {watch.passengers}
                 {outTime}
-                {retTime} · 알림 {watch.alertRule}
+                {retTime} · 알림 {ruleName(watch.alertRule)}
               </div>
             </div>
             <div className="detail-actions">
@@ -209,6 +262,59 @@ export default function WatchDetailPage() {
                 </section>
               );
             })()}
+
+          <section className="card">
+            <div className="rule-head">
+              <h3 className="card-title">알림 조건</h3>
+              {!editRule && (
+                <button type="button" className="btn btn-secondary sm" onClick={startRuleEdit}>
+                  조건 변경
+                </button>
+              )}
+            </div>
+            {!editRule ? (
+              <p className="rule-now">🔔 {ruleDesc(watch)}</p>
+            ) : (
+              <div className="rule-edit">
+                <div className="sb-trip rule-pills">
+                  {(['NEW_LOW', 'BELOW_THRESHOLD', 'DROP_PCT'] as AlertRule[]).map((r) => (
+                    <button key={r} type="button" className={draftRule === r ? 'active' : ''} onClick={() => setDraftRule(r)}>
+                      {ruleName(r)}
+                    </button>
+                  ))}
+                </div>
+                {draftRule === 'NEW_LOW' && <p className="muted">역대 최저가가 갱신될 때마다 알려드려요.</p>}
+                {draftRule === 'BELOW_THRESHOLD' && (
+                  <label className="rule-param">
+                    목표가
+                    <input
+                      inputMode="numeric"
+                      placeholder="예: 350000"
+                      value={draftThreshold}
+                      onChange={(e) => setDraftThreshold(e.target.value)}
+                    />
+                    {watch.currency} 이하로 내려오면 알림
+                  </label>
+                )}
+                {draftRule === 'DROP_PCT' && (
+                  <label className="rule-param">
+                    직전 최저가 대비
+                    <input inputMode="numeric" placeholder="예: 15" value={draftDrop} onChange={(e) => setDraftDrop(e.target.value)} />
+                    % 이상 떨어지면 알림
+                  </label>
+                )}
+                {ruleErr && <p className="error">{ruleErr}</p>}
+                <div className="rule-actions">
+                  <button type="button" className="btn btn-primary sm" onClick={saveRule} disabled={busy}>
+                    저장
+                  </button>
+                  <button type="button" className="btn btn-secondary sm" onClick={() => setEditRule(false)} disabled={busy}>
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
 
           {alerts.length > 0 && (
             <section className="card">

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import type { BuySignal, WatchSummary } from '@/lib/api';
+import type { AlertFeedItem, AlertRule, BuySignal, WatchSummary } from '@/lib/api';
 import { timeAgo } from '@/lib/time';
 import SearchBar from '@/components/SearchBar';
 import Sparkline from '@/components/Sparkline';
@@ -12,6 +12,7 @@ type SortKey = 'recent' | 'price' | 'score';
 
 const fmt = (v: number) => Math.round(v).toLocaleString('ko-KR');
 const shortDate = (s: string) => s.slice(5).replace('-', '.');
+const ruleShort = (r: AlertRule) => (r === 'BELOW_THRESHOLD' ? '목표가 도달' : r === 'DROP_PCT' ? '급락 감지' : '새 최저가');
 
 function SignalChip({ signal }: { signal: BuySignal }) {
   if (signal.daysToDeparture < 0) {
@@ -31,6 +32,7 @@ function SignalChip({ signal }: { signal: BuySignal }) {
 
 export default function HomePage() {
   const [items, setItems] = useState<WatchSummary[]>([]);
+  const [feed, setFeed] = useState<AlertFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>('recent');
@@ -39,7 +41,12 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      setItems(await api.getSummaries());
+      const [sums, alerts] = await Promise.all([
+        api.getSummaries(),
+        api.getAlertFeed(8).catch(() => [] as AlertFeedItem[]), // feed failure must not blank the page
+      ]);
+      setItems(sums);
+      setFeed(alerts);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -206,6 +213,37 @@ export default function HomePage() {
           </ul>
         )}
       </section>
+
+      {feed.length > 0 && (
+        <section>
+          <div className="section-head">
+            <h2>최근 알림</h2>
+            <span className="muted">전체 워치</span>
+          </div>
+          <ul className="feed">
+            {feed.map((a) => (
+              <li key={a.id}>
+                <Link href={`/watches/${a.watchId}`} className="feed-row">
+                  <span className="feed-route">
+                    {a.origin}
+                    <span className="arrow">→</span>
+                    {a.destination}
+                  </span>
+                  <span className="feed-main">
+                    {a.mistakeFare && <span className="mistake-badge">🔥 에러요금 의심</span>}
+                    🎉 {fmt(a.newLow)} {a.currency}
+                    {a.previousLow != null && <i> (이전 {fmt(a.previousLow)})</i>}
+                  </span>
+                  <span className="feed-side">
+                    <span className="chip-rule">{ruleShort(a.rule)}</span>
+                    <span className="ago">{timeAgo(a.createdAt)}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

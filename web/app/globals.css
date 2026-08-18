@@ -285,6 +285,29 @@ input:focus, select:focus { outline: none; border: 2px solid var(--blue-deep); p
 .wcard-skel { height: 172px; border: 1px solid var(--hairline-soft); border-radius: 16px; background: linear-gradient(100deg, var(--surface) 40%, #ffffff 50%, var(--surface) 60%); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* global alert feed */
+.feed { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.feed-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 14px; background: var(--canvas); color: inherit; text-decoration: none; transition: border-color .15s; }
+.feed-row:hover { border-color: var(--ink); }
+.feed-route { font-weight: 700; font-size: 15px; display: inline-flex; gap: 6px; align-items: center; }
+.feed-route .arrow { color: var(--coral); }
+.feed-main { font-weight: 600; font-size: 14px; }
+.feed-main i { font-style: normal; color: var(--stone); font-weight: 500; }
+.feed-side { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.chip-rule { font-size: 11.5px; font-weight: 700; border-radius: 9999px; padding: 3px 9px; background: var(--surface-soft); color: var(--steel); }
+.feed-side .ago { font-size: 12.5px; color: var(--stone); }
+
+/* alert rule editor */
+.rule-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.rule-head .card-title { margin: 0; }
+.rule-now { margin: 0; font-size: 15px; font-weight: 500; }
+.rule-edit { display: flex; flex-direction: column; gap: 12px; }
+.rule-pills { align-self: flex-start; }
+.rule-param { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; flex-wrap: wrap; }
+.rule-param input { width: 140px; height: 38px; }
+.rule-actions { display: flex; gap: 8px; }
+.btn.sm { padding: 8px 16px; font-size: 13.5px; }
+
 /* detail actions (pause/resume + delete) */
 .detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .btn-danger { background: var(--error); color: #fff; }

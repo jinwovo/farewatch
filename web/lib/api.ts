@@ -35,6 +35,8 @@ export interface Watch {
   cabin: Cabin;
   currency: string;
   alertRule: AlertRule;
+  thresholdAmount?: number | null;
+  dropPct?: number | null;
   active: boolean;
   pollIntervalMin: number;
   lastPolledAt?: string | null;
@@ -134,6 +136,27 @@ export interface WatchSummary {
 
 export interface UpdateWatchInput {
   active?: boolean;
+  alertRule?: AlertRule;
+  thresholdAmount?: number;
+  dropPct?: number;
+}
+
+/** One row of the global alert feed (alert + watch context). */
+export interface AlertFeedItem {
+  id: string;
+  watchId: string;
+  origin: string;
+  destination: string;
+  originKorean?: string | null;
+  destKorean?: string | null;
+  currency: string;
+  rule: AlertRule;
+  previousLow?: number | null;
+  newLow: number;
+  mistakeFare: boolean;
+  deepLink?: string | null;
+  createdAt: string;
+  notifications: NotificationDelivery[];
 }
 
 export interface CreateWatchInput {
@@ -199,6 +222,8 @@ export const api = {
     fetch(`/api/watches/${id}/calendar`, { cache: 'no-store' }).then((r) => unwrap<CalendarCell[]>(r)),
   getAlerts: (id: string): Promise<Alert[]> =>
     fetch(`/api/watches/${id}/alerts`, { cache: 'no-store' }).then((r) => unwrap<Alert[]>(r)),
+  getAlertFeed: (limit = 20): Promise<AlertFeedItem[]> =>
+    fetch(`/api/alerts?limit=${limit}`, { cache: 'no-store' }).then((r) => unwrap<AlertFeedItem[]>(r)),
   getWeather: (id: string): Promise<WeatherEstimate[]> =>
     fetch(`/api/watches/${id}/weather`, { cache: 'no-store' }).then((r) => unwrap<WeatherEstimate[]>(r)),
   getSignal: (id: string): Promise<BuySignal> =>
