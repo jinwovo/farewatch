@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,9 +39,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,7 +60,10 @@ import com.portfolio.farewatch.api.ApiClient
 import com.portfolio.farewatch.api.BuySignal
 import com.portfolio.farewatch.api.CalendarCell
 import com.portfolio.farewatch.api.PricePoint
+import com.portfolio.farewatch.api.SparkCell
+import com.portfolio.farewatch.api.UpdateWatchRequest
 import com.portfolio.farewatch.api.Watch
+import com.portfolio.farewatch.api.WatchSummary
 import com.portfolio.farewatch.api.WeatherEstimate
 import com.portfolio.farewatch.ui.theme.Blue
 import com.portfolio.farewatch.ui.theme.CanvasWhite
@@ -69,6 +75,7 @@ import com.portfolio.farewatch.ui.theme.Stone
 import com.portfolio.farewatch.ui.theme.SuccessBg
 import com.portfolio.farewatch.ui.theme.SuccessText
 import com.portfolio.farewatch.ui.theme.Surface
+import kotlinx.coroutines.launch
 
 private val White = CanvasWhite
 
@@ -124,19 +131,47 @@ fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, conta
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> Unit) {
-    var watches by remember { mutableStateOf<List<Watch>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+    var items by remember { mutableStateOf<List<WatchSummary>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var sort by remember { mutableStateOf("recent") }
     LaunchedEffect(refreshKey) {
         loading = true
         try {
-            watches = ApiClient.api.watches()
+            items = ApiClient.api.summaries()
+            error = null
         } catch (e: Exception) {
             error = e.message
         } finally {
             loading = false
         }
     }
+
+    fun toggleActive(s: WatchSummary) {
+        val next = !s.watch.active
+        items = items.map { if (it.watch.id == s.watch.id) it.copy(watch = it.watch.copy(active = next)) else it }
+        scope.launch {
+            try {
+                ApiClient.api.updateWatch(s.watch.id, UpdateWatchRequest(next))
+            } catch (e: Exception) { // roll back the optimistic flip
+                items = items.map { if (it.watch.id == s.watch.id) it.copy(watch = it.watch.copy(active = !next)) else it }
+            }
+        }
+    }
+
+    val sorted = when (sort) {
+        "price" -> items.sortedBy { it.latestAmount ?: Double.MAX_VALUE }
+        // expired watches keep their last score but there is nothing left to buy — sink them
+        "score" -> items.sortedByDescending {
+            if (it.signal.recommendation == "NO_DATA" || it.signal.daysToDeparture < 0) -1 else it.signal.score
+        }
+        else -> items // server order: newest first
+    }
+    // keyed LazyColumn anchors scroll to the previously-visible card across a re-sort —
+    // jump back to the top so the new #1 is what the user sees
+    val listState = rememberLazyListState()
+    LaunchedEffect(sort) { listState.scrollToItem(0) }
     Scaffold(
         containerColor = White,
         floatingActionButton = {
@@ -149,13 +184,19 @@ fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> U
             Brand()
             Spacer(Modifier.height(4.dp))
             Text("항공권 최저가 감시", color = Steel, fontSize = 15.sp)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
+            if (items.isNotEmpty()) {
+                SortTabs(sort) { sort = it }
+                Spacer(Modifier.height(12.dp))
+            }
             when {
                 loading -> CircularProgressIndicator(color = Coral)
                 error != null -> Text("백엔드 연결 실패: $error", color = MaterialTheme.colorScheme.error)
-                watches.isEmpty() -> Text("워치가 없습니다. ＋ 워치 검색으로 만들어보세요.", color = Stone)
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(watches) { w -> WatchCard(w) { onOpen(w.id) } }
+                items.isEmpty() -> Text("워치가 없습니다. ＋ 워치 검색으로 만들어보세요.", color = Stone)
+                else -> LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(sorted, key = { it.watch.id }) { s ->
+                        SummaryCard(s, onClick = { onOpen(s.watch.id) }, onToggle = { toggleActive(s) })
+                    }
                     item { Spacer(Modifier.height(72.dp)) }
                 }
             }
@@ -164,27 +205,157 @@ fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> U
 }
 
 @Composable
-fun WatchCard(w: Watch, onClick: () -> Unit) {
+private fun SortTabs(sort: String, onSort: (String) -> Unit) {
+    Row(
+        Modifier.background(Surface, RoundedCornerShape(50)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        listOf("recent" to "최신순", "price" to "가격순", "score" to "딜점수순").forEach { (k, label) ->
+            val active = sort == k
+            Box(
+                Modifier
+                    .background(if (active) Ink else Surface, RoundedCornerShape(50))
+                    .clickable { onSort(k) }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (active) White else Steel)
+            }
+        }
+    }
+}
+
+private fun shortDate(s: String) = s.drop(5).replace('-', '.')
+
+/** Web wcard parity: price + vs-all-time-low + signal chip + sparkline + pause toggle. */
+@Composable
+fun SummaryCard(s: WatchSummary, onClick: () -> Unit, onToggle: () -> Unit) {
+    val w = s.watch
+    val expired = s.signal.daysToDeparture < 0
+    val hasSignal = s.signal.recommendation != "NO_DATA" && !expired
+    val latest = s.latestAmount
+    val atLow = hasSignal && latest != null && latest <= s.signal.lowestAmount
+    val overLowPct = if (hasSignal && latest != null && s.signal.lowestAmount > 0) {
+        (latest - s.signal.lowestAmount) / s.signal.lowestAmount * 100
+    } else {
+        null
+    }
     Column(
         Modifier
             .fillMaxWidth()
+            .alpha(if (w.active) 1f else 0.55f)
             .border(1.dp, Hairline, RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(20.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(w.origin, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("  →  ", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Coral)
-            Text(w.destination, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(w.origin, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                    Text("  →  ", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Coral)
+                    Text(w.destination, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                }
+                if (w.originKorean != null || w.destKorean != null) {
+                    Text("${w.originKorean ?: w.origin} → ${w.destKorean ?: w.destination}", color = Steel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+                val trip = if (w.tripType == "ROUND_TRIP") "왕복" else "편도"
+                val dates = if (w.tripType == "ROUND_TRIP" && w.returnDateFrom != null) {
+                    "${shortDate(w.departDateFrom)} → ${shortDate(w.returnDateFrom)}"
+                } else if (w.departDateTo != w.departDateFrom) {
+                    "${shortDate(w.departDateFrom)} ~ ${shortDate(w.departDateTo)}"
+                } else {
+                    shortDate(w.departDateFrom)
+                }
+                Spacer(Modifier.height(2.dp))
+                Text("$dates · $trip", color = Steel, fontSize = 13.sp)
+            }
+            Box(
+                Modifier.size(32.dp).border(1.dp, Hairline, CircleShape).clickable { onToggle() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (w.active) "⏸" else "▶", fontSize = 12.sp, color = Steel)
+            }
         }
-        if (w.originKorean != null || w.destKorean != null) {
-            Spacer(Modifier.height(2.dp))
-            Text("${w.originKorean ?: w.origin} → ${w.destKorean ?: w.destination}", color = Steel, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Column {
+                if (latest != null) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("%,d".format(latest.toLong()), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("  ${w.currency}", color = Steel, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                    when {
+                        atLow -> Text("지금이 역대 최저가 🔥", color = Coral, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        overLowPct != null -> Text(
+                            "역대 최저 ${"%,d".format(s.signal.lowestAmount.toLong())} · +${"%.1f".format(overLowPct)}%",
+                            color = Steel, fontSize = 12.sp,
+                        )
+                    }
+                } else {
+                    Text("첫 가격을 수집하고 있어요…", color = Stone, fontSize = 13.sp)
+                }
+            }
+            MiniSparkline(s.spark)
         }
-        val window = if (w.departDateTo != w.departDateFrom) "${w.departDateFrom} ~ ${w.departDateTo}" else w.departDateFrom
-        val trip = if (w.tripType == "ROUND_TRIP") "왕복" else "편도"
-        Spacer(Modifier.height(6.dp))
-        Text("$window · $trip · ${cabinKo(w.cabin)} · 알림 ${w.alertRule}", color = Steel, fontSize = 14.sp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SignalChip(s.signal)
+            if (!w.active) Chip("⏸ 일시정지", Surface, Steel)
+            Spacer(Modifier.weight(1f))
+            timeAgo(s.latestObservedAt)?.let { Text("$it 확인", color = Stone, fontSize = 11.sp) }
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, bg: androidx.compose.ui.graphics.Color, fg: androidx.compose.ui.graphics.Color) {
+    Box(Modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Text(text, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+@Composable
+private fun SignalChip(s: BuySignal) {
+    when {
+        s.daysToDeparture < 0 -> Chip("🗓 지난 일정", Surface, Steel) // departed — nothing left to buy
+        s.recommendation == "NO_DATA" -> Chip("📡 수집 중", Surface, Steel)
+        s.recommendation == "BUY" -> Chip("지금 사세요 · ${s.score}", SuccessBg, SuccessText)
+        s.recommendation == "WAIT" -> Chip("기다려보세요 · ${s.score}", androidx.compose.ui.graphics.Color(0xFFEFF5FF), androidx.compose.ui.graphics.Color(0xFF1D4ED8))
+        else -> Chip("고민해보세요 · ${s.score}", androidx.compose.ui.graphics.Color(0xFFFFF9EC), androidx.compose.ui.graphics.Color(0xFFB8860B))
+    }
+}
+
+/** Tiny 30-day day-min sparkline; coral dot marks the window minimum. */
+@Composable
+private fun MiniSparkline(cells: List<SparkCell>) {
+    if (cells.isEmpty()) return
+    val amounts = cells.map { it.amount }
+    val mn = amounts.min()
+    val mx = amounts.max()
+    val mnIdx = amounts.indexOf(mn)
+    Canvas(Modifier.width(96.dp).height(30.dp)) {
+        val n = cells.size
+        val pad = 8f
+        fun px(i: Int) = if (n == 1) size.width / 2 else pad + (size.width - 2 * pad) * i / (n - 1)
+        fun py(v: Double): Float {
+            val t = if (mx - mn < 1e-6) 0.5 else (mx - v) / (mx - mn)
+            return pad + (size.height - 2 * pad) * t.toFloat()
+        }
+        if (n > 1) {
+            val line = Path()
+            amounts.forEachIndexed { i, v -> if (i == 0) line.moveTo(px(i), py(v)) else line.lineTo(px(i), py(v)) }
+            drawPath(line, Blue, style = Stroke(width = 4f))
+        }
+        drawCircle(Coral, radius = 7f, center = Offset(px(mnIdx), py(mn)))
+    }
+}
+
+private fun timeAgo(iso: String?): String? {
+    val t = iso?.let { toInstant(it) } ?: return null
+    val s = java.time.Duration.between(t, java.time.Instant.now()).seconds.coerceAtLeast(0)
+    return when {
+        s < 60 -> "방금 전"
+        s < 3600 -> "${s / 60}분 전"
+        s < 86400 -> "${s / 3600}시간 전"
+        else -> "${s / 86400}일 전"
     }
 }
 
@@ -196,9 +367,11 @@ fun cabinKo(c: String) = when (c) {
     else -> c
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var watch by remember { mutableStateOf<Watch?>(null) }
     var prices by remember { mutableStateOf<List<PricePoint>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<Alert>>(emptyList()) }
@@ -206,6 +379,8 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
     var calendar by remember { mutableStateOf<List<CalendarCell>>(emptyList()) }
     var signal by remember { mutableStateOf<BuySignal?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
 
     suspend fun reload() {
         try {
@@ -242,6 +417,65 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
                 }
             }
         }
+        watch?.let { w ->
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton(
+                    if (w.active) "⏸ 일시정지" else "▶ 추적 재개",
+                    onClick = {
+                        if (!busy) {
+                            busy = true
+                            scope.launch {
+                                try {
+                                    watch = ApiClient.api.updateWatch(w.id, UpdateWatchRequest(!w.active))
+                                } catch (e: Exception) {
+                                    error = e.message
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        }
+                    },
+                    enabled = !busy,
+                )
+                if (confirmDelete) {
+                    PillButton(
+                        "삭제 확인",
+                        onClick = {
+                            if (!busy) {
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        ApiClient.api.deleteWatch(w.id)
+                                        onBack()
+                                    } catch (e: Exception) {
+                                        error = e.message
+                                        busy = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !busy,
+                        container = androidx.compose.ui.graphics.Color(0xFFD45656),
+                        content = White,
+                    )
+                    PillButton("취소", onClick = { confirmDelete = false }, enabled = !busy, container = Surface, content = Ink)
+                } else {
+                    PillButton(
+                        "삭제",
+                        onClick = { confirmDelete = true },
+                        container = androidx.compose.ui.graphics.Color(0xFFFDE8E8),
+                        content = androidx.compose.ui.graphics.Color(0xFFD45656),
+                    )
+                }
+            }
+            if (!w.active) {
+                Text(
+                    "⏸ 일시정지된 워치예요 — 추적 재개를 누르면 다음 스윕부터 다시 모아요.",
+                    color = Steel, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(12.dp)).padding(12.dp),
+                )
+            }
+        }
         error?.let { Text("오류: $it", color = MaterialTheme.colorScheme.error) }
 
         // signature coral hero card
@@ -267,7 +501,8 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             }
         }
 
-        signal?.let { if (it.recommendation != "NO_DATA") BuySignalCard(it) }
+        // no signal for departed watches — nothing left to buy (web parity)
+        signal?.let { if (it.recommendation != "NO_DATA" && it.daysToDeparture >= 0) BuySignalCard(it) }
 
         if (prices.isNotEmpty()) {
             SectionTitle("가격 인사이트")

@@ -15,10 +15,30 @@ data class Watch(
     val cabin: String,
     val currency: String,
     val alertRule: String,
+    val active: Boolean = true,
     val originKorean: String? = null,
     val originName: String? = null,
     val destKorean: String? = null,
     val destName: String? = null,
+)
+
+/** One sparkline day: the cheapest observation of that day. */
+data class SparkCell(
+    val day: String,
+    val amount: Double,
+)
+
+/** One home-dashboard card (GET /api/watches/summary) — watch + live price/signal/sparkline. */
+data class WatchSummary(
+    val watch: Watch,
+    val latestAmount: Double?,
+    val latestObservedAt: String?,
+    val signal: BuySignal,
+    val spark: List<SparkCell>,
+)
+
+data class UpdateWatchRequest(
+    val active: Boolean,
 )
 
 data class PricePoint(

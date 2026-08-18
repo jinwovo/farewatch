@@ -1,7 +1,9 @@
 package com.portfolio.farewatch.api
 
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -22,8 +24,17 @@ interface FarewatchApi {
     @GET("api/watches")
     suspend fun watches(): List<Watch>
 
+    @GET("api/watches/summary")
+    suspend fun summaries(): List<WatchSummary>
+
     @GET("api/watches/{id}")
     suspend fun watch(@Path("id") id: String): Watch
+
+    @PATCH("api/watches/{id}")
+    suspend fun updateWatch(@Path("id") id: String, @Body request: UpdateWatchRequest): Watch
+
+    @DELETE("api/watches/{id}")
+    suspend fun deleteWatch(@Path("id") id: String)
 
     @GET("api/watches/{id}/prices")
     suspend fun prices(@Path("id") id: String): List<PricePoint>
