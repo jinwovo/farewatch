@@ -70,7 +70,9 @@ export default function HomePage() {
     if (sort === 'price') {
       arr.sort((a, b) => (a.latestAmount ?? Infinity) - (b.latestAmount ?? Infinity));
     } else if (sort === 'score') {
-      const score = (s: WatchSummary) => (s.signal.recommendation === 'NO_DATA' ? -1 : s.signal.score);
+      // expired watches keep their last score but there is nothing left to buy — sink them
+      const score = (s: WatchSummary) =>
+        s.signal.recommendation === 'NO_DATA' || s.signal.daysToDeparture < 0 ? -1 : s.signal.score;
       arr.sort((a, b) => score(b) - score(a));
     }
     return arr; // 'recent': server order (newest first)
