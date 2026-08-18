@@ -5,6 +5,7 @@ import com.portfolio.farewatch.domain.AlertRule;
 import com.portfolio.farewatch.domain.Cabin;
 import com.portfolio.farewatch.domain.TripType;
 import com.portfolio.farewatch.domain.Watch;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -28,6 +29,8 @@ public record WatchResponse(
 		Cabin cabin,
 		String currency,
 		AlertRule alertRule,
+		BigDecimal thresholdAmount,
+		BigDecimal dropPct,
 		boolean active,
 		int pollIntervalMin,
 		Instant lastPolledAt,
@@ -48,6 +51,7 @@ public record WatchResponse(
 				w.getDepartDateFrom(), w.getDepartDateTo(), w.getReturnDateFrom(), w.getReturnDateTo(),
 				w.getDepartTimeFrom(), w.getDepartTimeTo(), w.getReturnTimeFrom(), w.getReturnTimeTo(),
 				w.getPassengers(), w.getCabin(), w.getCurrency(), w.getAlertRule(),
+				w.getThresholdAmount(), w.getDropPct(),
 				w.isActive(), w.getPollIntervalMin(), w.getLastPolledAt(), w.getNextPollAt(), w.getCreatedAt(),
 				originAirport == null ? null : originAirport.getKorean(),
 				originAirport == null ? null : originAirport.getName(),

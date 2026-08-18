@@ -88,7 +88,7 @@ public class WatchController {
 	}
 
 	@PatchMapping("/{id}")
-	public WatchResponse update(@PathVariable UUID id, @RequestBody UpdateWatchRequest request) {
+	public WatchResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateWatchRequest request) {
 		return resp(watchService.update(id, request));
 	}
 

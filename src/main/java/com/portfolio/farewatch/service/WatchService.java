@@ -1,5 +1,6 @@
 package com.portfolio.farewatch.service;
 
+import com.portfolio.farewatch.domain.AlertRule;
 import com.portfolio.farewatch.domain.PriceAlert;
 import com.portfolio.farewatch.domain.Watch;
 import com.portfolio.farewatch.repo.NotificationRepository;
@@ -123,12 +124,29 @@ public class WatchService {
 	}
 
 	/**
-	 * Partial update (pause/resume). Resuming also makes the watch due immediately, so
-	 * the next sweep tick picks it up instead of waiting out the old schedule.
+	 * Partial update: pause/resume and alert-condition editing. Params are applied before
+	 * the rule so one call can switch rule and set its parameter together; a rule that
+	 * needs a parameter is rejected unless one is (or becomes) set. Resuming also makes
+	 * the watch due immediately, so the next sweep tick picks it up.
 	 */
 	@Transactional
 	public Watch update(UUID id, UpdateWatchRequest r) {
 		Watch w = get(id);
+		if (r.thresholdAmount() != null) {
+			w.setThresholdAmount(r.thresholdAmount());
+		}
+		if (r.dropPct() != null) {
+			w.setDropPct(r.dropPct());
+		}
+		if (r.alertRule() != null) {
+			if (r.alertRule() == AlertRule.BELOW_THRESHOLD && w.getThresholdAmount() == null) {
+				throw new IllegalArgumentException("BELOW_THRESHOLD requires thresholdAmount");
+			}
+			if (r.alertRule() == AlertRule.DROP_PCT && w.getDropPct() == null) {
+				throw new IllegalArgumentException("DROP_PCT requires dropPct");
+			}
+			w.setAlertRule(r.alertRule());
+		}
 		if (r.active() != null && r.active() != w.isActive()) {
 			w.setActive(r.active());
 			if (r.active()) {

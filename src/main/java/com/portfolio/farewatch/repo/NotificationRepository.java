@@ -31,4 +31,7 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
 	/** Deliveries for one alert (for the alert-history view). */
 	List<Notification> findByAlert_IdOrderByChannelAsc(UUID alertId);
+
+	/** Deliveries for many alerts in one query (global feed) — grouped by the caller. */
+	List<Notification> findByAlert_IdInOrderByChannelAsc(Collection<UUID> alertIds);
 }
