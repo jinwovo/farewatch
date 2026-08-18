@@ -9,6 +9,10 @@
 
 ## 데모 (Demo)
 
+| **홈 대시보드** — 워치마다 현재가·역대최저 대비·딜 스코어 칩·30일 스파크라인·일시정지, **API 호출 한 번**(`/api/watches/summary`) |
+|:--:|
+| ![dashboard](docs/demo/dashboard.png) |
+
 | 워치 만들기 — 공항 자동완성·유연 날짜·시간대 | 워치 상세 — 최저가·알림·**날씨**·히트맵·추이 |
 |:--:|:--:|
 | ![home](docs/demo/home.png) | ![detail](docs/demo/weather.png) |
@@ -179,6 +183,7 @@ cd web && npm install && npm run dev
 - [x] **고도화 (차별점)** — ① **매수 신호 + 딜 스코어**(투명 통계 모델, 웹·Android) ② **에러요금 이상탐지**(z-score, 🔥 우선 알림) ③ **큐 장애복구**(XPENDING+XCLAIM reclaim + DLQ, 카오스 테스트) ✅
 - [x] **운영 고도화** — ① **가격이력 리텐션**: raw 90일 + 일별 롤업(`price_point_daily`, min/max/avg/count) 후 purge → *테이블이 시간에 비례해 자라지 않는다*; 알림 근거 행은 영구 보존, 역대최저가는 raw∪롤업 병합(`PriceHistoryService`)으로 리텐션 경계에서도 정확 ② **Micrometer 메트릭**: 소스별 지연·성공/스킵, 큐 깊이·DLQ 게이지, 알림 발송, 스윕/리텐션 카운터 → `/actuator/prometheus` ③ `run.ps1` 런처(.env 주입 — Spring은 .env를 안 읽는다) ✅
 - [x] **관측성 고도화** — **Prometheus + Grafana**(`docker-compose`, 코드 프로비저닝, 익명 read-only `:3004`) · farewatch 대시보드 **16패널**(인스턴스별 폴 처리량 · 스윕 파이프라인 · 소스 p95/스킵 · 알림/에러요금 · 발송 · 리텐션 · JVM/HTTP) · p95 **히스토그램 버킷** 활성 · **멀티인스턴스 런처**(`run-cluster.ps1`) → 인스턴스 2개 라이브로 **분산 drain 합산** 캡처(`docs/demo/grafana.png`) · [ADR-0004](docs/adr/0004-observability.md) ✅ · *남음: k3d 멀티팟(분산 exactly-once는 통합테스트 + `by(instance)` 대시보드로 증명됨)*
+- [x] **대시보드 고도화 (UX)** — 홈이 **라이브 대시보드**로: `GET /api/watches/summary`(현재가 · 매수신호 · 30일 스파크라인을 **배치 쿼리**로 — 브라우저 N+1 없음) + `PATCH /api/watches/{id}`(**일시정지/재개**, 재개 시 즉시 due) · 카드 UI(딜 스코어 칩 · 역대최저 대비 % · 스파크라인 · 최신/가격/딜점수 **정렬** · 상대시간 · **지난 일정** 처리) · 상세 일시정지/삭제(2단계 확인) · 스켈레톤 로딩 · 통합테스트(`WatchDashboardApiTest`) ✅ (`docs/demo/dashboard.png`)
 
 ## ADR
 
