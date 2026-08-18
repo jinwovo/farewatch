@@ -6,6 +6,7 @@ import com.portfolio.farewatch.repo.AirportRepository;
 import com.portfolio.farewatch.service.BuySignalService;
 import com.portfolio.farewatch.service.PollService;
 import com.portfolio.farewatch.service.WatchService;
+import com.portfolio.farewatch.service.WatchSummaryService;
 import com.portfolio.farewatch.weather.WeatherEstimate;
 import com.portfolio.farewatch.weather.WeatherService;
 import com.portfolio.farewatch.web.dto.AlertResponse;
@@ -14,7 +15,9 @@ import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.PollResultResponse;
 import com.portfolio.farewatch.web.dto.PricePointResponse;
+import com.portfolio.farewatch.web.dto.UpdateWatchRequest;
 import com.portfolio.farewatch.web.dto.WatchResponse;
+import com.portfolio.farewatch.web.dto.WatchSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,16 +43,19 @@ public class WatchController {
 	private final WeatherService weatherService;
 	private final AirportRepository airports;
 	private final BuySignalService buySignalService;
+	private final WatchSummaryService watchSummaryService;
 
 	public WatchController(WatchService watchService, PollService pollService,
 			NotificationDispatcher notificationDispatcher, WeatherService weatherService,
-			AirportRepository airports, BuySignalService buySignalService) {
+			AirportRepository airports, BuySignalService buySignalService,
+			WatchSummaryService watchSummaryService) {
 		this.watchService = watchService;
 		this.pollService = pollService;
 		this.notificationDispatcher = notificationDispatcher;
 		this.weatherService = weatherService;
 		this.airports = airports;
 		this.buySignalService = buySignalService;
+		this.watchSummaryService = watchSummaryService;
 	}
 
 	/** Map a watch to its response, enriched with origin/destination airport display names. */
@@ -69,9 +76,20 @@ public class WatchController {
 		return watchService.list(userRef).stream().map(this::resp).toList();
 	}
 
+	/** Home-dashboard payload: each watch with latest price, buy signal and sparkline. */
+	@GetMapping("/summary")
+	public List<WatchSummaryResponse> summary(@RequestParam(required = false) String userRef) {
+		return watchSummaryService.summaries(userRef);
+	}
+
 	@GetMapping("/{id}")
 	public WatchResponse get(@PathVariable UUID id) {
 		return resp(watchService.get(id));
+	}
+
+	@PatchMapping("/{id}")
+	public WatchResponse update(@PathVariable UUID id, @RequestBody UpdateWatchRequest request) {
+		return resp(watchService.update(id, request));
 	}
 
 	@DeleteMapping("/{id}")

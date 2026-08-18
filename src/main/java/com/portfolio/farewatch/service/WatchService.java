@@ -11,6 +11,7 @@ import com.portfolio.farewatch.web.dto.CalendarCell;
 import com.portfolio.farewatch.web.dto.CreateWatchRequest;
 import com.portfolio.farewatch.web.dto.NotificationResponse;
 import com.portfolio.farewatch.web.dto.PricePointResponse;
+import com.portfolio.farewatch.web.dto.UpdateWatchRequest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -119,6 +120,22 @@ public class WatchService {
 			out.add(AlertResponse.from(alert, deliveries));
 		}
 		return out;
+	}
+
+	/**
+	 * Partial update (pause/resume). Resuming also makes the watch due immediately, so
+	 * the next sweep tick picks it up instead of waiting out the old schedule.
+	 */
+	@Transactional
+	public Watch update(UUID id, UpdateWatchRequest r) {
+		Watch w = get(id);
+		if (r.active() != null && r.active() != w.isActive()) {
+			w.setActive(r.active());
+			if (r.active()) {
+				w.setNextPollAt(Instant.now());
+			}
+		}
+		return w;
 	}
 
 	@Transactional

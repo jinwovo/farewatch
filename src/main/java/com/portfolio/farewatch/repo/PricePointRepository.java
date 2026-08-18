@@ -2,6 +2,7 @@ package com.portfolio.farewatch.repo;
 
 import com.portfolio.farewatch.domain.PricePoint;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -47,11 +48,35 @@ public interface PricePointRepository extends JpaRepository<PricePoint, UUID> {
 			""")
 	List<VolStat> volatilityStats(@Param("ids") Collection<UUID> ids);
 
+	/**
+	 * Cheapest observation per (watch, day) for MANY watches in one round-trip — powers the
+	 * dashboard sparklines. Native because the day bucket is {@code date(observed_at)};
+	 * aliases are quoted so PostgreSQL keeps their case for the projection. Bounded by the
+	 * caller's {@code since} horizon (well inside raw retention, so raw rows cover it).
+	 */
+	@Query(value = """
+			select p.watch_id as "watchId", date(p.observed_at) as "day", min(p.amount) as "low"
+			from price_point p
+			where p.watch_id in (:ids) and p.observed_at >= :since
+			group by p.watch_id, date(p.observed_at)
+			order by p.watch_id, date(p.observed_at)
+			""", nativeQuery = true)
+	List<DayLow> dayLows(@Param("ids") Collection<UUID> ids, @Param("since") Instant since);
+
 	/** Projection for {@link #cheapestByDepartDate}. */
 	interface DateLow {
 		LocalDate getDepartDate();
 
 		BigDecimal getLowest();
+	}
+
+	/** Projection for {@link #dayLows}. */
+	interface DayLow {
+		UUID getWatchId();
+
+		LocalDate getDay();
+
+		BigDecimal getLow();
 	}
 
 	/** Projection for {@link #volatilityStats}. */

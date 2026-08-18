@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BuySignalService {
 
 	/** Stats run over the most recent observations, not the whole history (scales to long series). */
-	private static final int STAT_WINDOW = 200;
+	static final int STAT_WINDOW = 200;
 
 	private final WatchRepository watches;
 	private final PricePointRepository pricePoints;
@@ -46,6 +46,15 @@ public class BuySignalService {
 		List<PricePoint> pts = pricePoints
 				.findByWatch_IdOrderByObservedAtDesc(watchId, PageRequest.of(0, STAT_WINDOW))
 				.reversed();
+		return signalFor(w, pts);
+	}
+
+	/**
+	 * Same signal from an already-loaded window (oldest-first, capped at {@link #STAT_WINDOW}) —
+	 * lets the dashboard summary reuse the points it fetched instead of reading them twice.
+	 */
+	@Transactional(readOnly = true)
+	public BuySignal signalFor(Watch w, List<PricePoint> pts) {
 		long days = ChronoUnit.DAYS.between(LocalDate.now(), w.getDepartDateFrom());
 
 		if (pts.size() < 3) {
@@ -58,7 +67,7 @@ public class BuySignalService {
 		int n = a.length;
 		double current = a[n - 1];
 		// All-time low across raw history AND rolled-up days (retention-safe) — indexed, not a JVM scan.
-		double lowest = priceHistory.allTimeLowAmount(watchId)
+		double lowest = priceHistory.allTimeLowAmount(w.getId())
 				.map(BigDecimal::doubleValue).orElse(current);
 
 		double below = 0;
