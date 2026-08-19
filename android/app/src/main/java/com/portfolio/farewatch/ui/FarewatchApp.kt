@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,6 +33,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,10 +55,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portfolio.farewatch.api.Alert
+import com.portfolio.farewatch.api.AlertFeedItem
 import com.portfolio.farewatch.api.ApiClient
 import com.portfolio.farewatch.api.BuySignal
 import com.portfolio.farewatch.api.CalendarCell
@@ -66,8 +71,10 @@ import com.portfolio.farewatch.api.Watch
 import com.portfolio.farewatch.api.WatchSummary
 import com.portfolio.farewatch.api.WeatherEstimate
 import com.portfolio.farewatch.ui.theme.Blue
+import com.portfolio.farewatch.ui.theme.BlueDeep
 import com.portfolio.farewatch.ui.theme.CanvasWhite
 import com.portfolio.farewatch.ui.theme.Coral
+import com.portfolio.farewatch.ui.theme.ErrorRed
 import com.portfolio.farewatch.ui.theme.Hairline
 import com.portfolio.farewatch.ui.theme.Ink
 import com.portfolio.farewatch.ui.theme.Steel
@@ -133,6 +140,7 @@ fun PillButton(text: String, onClick: () -> Unit, enabled: Boolean = true, conta
 fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> Unit) {
     val scope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<WatchSummary>>(emptyList()) }
+    var feedItems by remember { mutableStateOf<List<AlertFeedItem>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var sort by remember { mutableStateOf("recent") }
@@ -146,6 +154,8 @@ fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> U
         } finally {
             loading = false
         }
+        // feed failure must not blank the list
+        feedItems = runCatching { ApiClient.api.alertFeed(8) }.getOrDefault(emptyList())
     }
 
     fun toggleActive(s: WatchSummary) {
@@ -196,6 +206,18 @@ fun WatchListScreen(refreshKey: Int, onOpen: (String) -> Unit, onCreate: () -> U
                 else -> LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(sorted, key = { it.watch.id }) { s ->
                         SummaryCard(s, onClick = { onOpen(s.watch.id) }, onToggle = { toggleActive(s) })
+                    }
+                    if (feedItems.isNotEmpty()) {
+                        item(key = "feed-head") {
+                            Text(
+                                "최근 알림",
+                                fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        }
+                        items(feedItems, key = { "feed-" + it.id }) { a ->
+                            FeedRow(a) { onOpen(a.watchId) }
+                        }
                     }
                     item { Spacer(Modifier.height(72.dp)) }
                 }
@@ -359,6 +381,174 @@ private fun timeAgo(iso: String?): String? {
     }
 }
 
+private fun ruleShortKo(rule: String) = when (rule) {
+    "BELOW_THRESHOLD" -> "목표가 도달"
+    "DROP_PCT" -> "급락 감지"
+    else -> "새 최저가"
+}
+
+/** One global-feed row (web .feed-row parity): route + rule chip + prices + relative time. */
+@Composable
+private fun FeedRow(a: AlertFeedItem, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Surface, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(a.origin, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(" → ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Coral)
+            Text(a.destination, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            Chip(ruleShortKo(a.rule), White, Steel)
+            Spacer(Modifier.weight(1f))
+            timeAgo(a.createdAt)?.let { Text(it, color = Stone, fontSize = 11.sp) }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (a.mistakeFare) {
+                Chip("🔥 에러요금 의심", Coral, White)
+            }
+            Text(
+                "🎉 ${"%,d".format(a.newLow.toLong())} ${a.currency}" +
+                        (a.previousLow?.let { " (이전 ${"%,d".format(it.toLong())})" } ?: ""),
+                fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/** Web [알림 조건] card parity: one-sentence rule + inline editor (3 pills + parameter). */
+@Composable
+private fun AlertRuleCard(w: Watch, onSaved: (Watch) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var editing by remember { mutableStateOf(false) }
+    var draftRule by remember { mutableStateOf(w.alertRule) }
+    var draftThreshold by remember { mutableStateOf("") }
+    var draftDrop by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+
+    fun pctText(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()
+    val desc = when (w.alertRule) {
+        "BELOW_THRESHOLD" ->
+            "목표가 ${w.thresholdAmount?.let { "%,d".format(it.toLong()) } ?: "—"} ${w.currency} 이하로 내려오면 알림을 보내요."
+        "DROP_PCT" -> "직전 최저가보다 ${w.dropPct?.let(::pctText) ?: "—"}% 이상 급락하면 알림을 보내요."
+        else -> "역대 최저가가 갱신될 때마다 알림을 보내요."
+    }
+
+    Column(
+        Modifier.fillMaxWidth().border(1.dp, Hairline, RoundedCornerShape(16.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("알림 조건", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            if (!editing) {
+                PillButton("조건 변경", onClick = {
+                    draftRule = w.alertRule
+                    draftThreshold = w.thresholdAmount?.toLong()?.toString() ?: ""
+                    draftDrop = w.dropPct?.let(::pctText) ?: ""
+                    err = null
+                    editing = true
+                }, container = Surface, content = Ink)
+            }
+        }
+        if (!editing) {
+            Text("🔔 $desc", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        } else {
+            Row(
+                Modifier.background(Surface, RoundedCornerShape(50)).padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                listOf("NEW_LOW" to "새 최저가", "BELOW_THRESHOLD" to "목표가", "DROP_PCT" to "급락 감지").forEach { (k, label) ->
+                    val active = draftRule == k
+                    Box(
+                        Modifier
+                            .background(if (active) Ink else Surface, RoundedCornerShape(50))
+                            .clickable { draftRule = k }
+                            .padding(horizontal = 13.dp, vertical = 7.dp),
+                    ) {
+                        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (active) White else Steel)
+                    }
+                }
+            }
+            when (draftRule) {
+                "BELOW_THRESHOLD" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("목표가", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    OutlinedTextField(
+                        value = draftThreshold, onValueChange = { draftThreshold = it },
+                        singleLine = true, shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BlueDeep, unfocusedBorderColor = Hairline,
+                            focusedContainerColor = White, unfocusedContainerColor = White,
+                        ),
+                        modifier = Modifier.width(150.dp),
+                    )
+                    Text("${w.currency} 이하일 때", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                "DROP_PCT" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("직전 최저 대비", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    OutlinedTextField(
+                        value = draftDrop, onValueChange = { draftDrop = it },
+                        singleLine = true, shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BlueDeep, unfocusedBorderColor = Hairline,
+                            focusedContainerColor = White, unfocusedContainerColor = White,
+                        ),
+                        modifier = Modifier.width(100.dp),
+                    )
+                    Text("% 이상 하락 시", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                else -> Text("역대 최저가가 갱신될 때마다 알려드려요.", color = Stone, fontSize = 13.sp)
+            }
+            err?.let { Text(it, color = ErrorRed, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton("저장", enabled = !saving, onClick = {
+                    var body: UpdateWatchRequest? = null
+                    when (draftRule) {
+                        "BELOW_THRESHOLD" -> {
+                            val v = draftThreshold.replace(",", "").trim().toDoubleOrNull()
+                            if (v == null || v <= 0) {
+                                err = "목표가를 숫자로 입력해 주세요."
+                            } else {
+                                body = UpdateWatchRequest(alertRule = draftRule, thresholdAmount = v)
+                            }
+                        }
+                        "DROP_PCT" -> {
+                            val v = draftDrop.replace(",", "").trim().toDoubleOrNull()
+                            if (v == null || v <= 0 || v > 90) {
+                                err = "하락률은 0보다 크고 90 이하의 숫자여야 해요."
+                            } else {
+                                body = UpdateWatchRequest(alertRule = draftRule, dropPct = v)
+                            }
+                        }
+                        else -> body = UpdateWatchRequest(alertRule = draftRule)
+                    }
+                    body?.let { b ->
+                        saving = true
+                        err = null
+                        scope.launch {
+                            try {
+                                onSaved(ApiClient.api.updateWatch(w.id, b))
+                                editing = false
+                            } catch (e: Exception) {
+                                err = e.message
+                            } finally {
+                                saving = false
+                            }
+                        }
+                    }
+                })
+                PillButton("취소", enabled = !saving, onClick = { editing = false }, container = Surface, content = Ink)
+            }
+        }
+    }
+}
+
 fun cabinKo(c: String) = when (c) {
     "ECONOMY" -> "일반석"
     "PREMIUM_ECONOMY" -> "프리미엄"
@@ -516,6 +706,8 @@ fun WatchDetailScreen(id: String, onBack: () -> Unit) {
             SectionTitle("날짜별 최저가")
             Heatmap(calendar)
         }
+        watch?.let { w -> AlertRuleCard(w) { updated -> watch = updated } }
+
         if (alerts.isNotEmpty()) {
             SectionTitle("알림 내역")
             alerts.forEach { a -> AlertRow(a, watch?.currency ?: "") }

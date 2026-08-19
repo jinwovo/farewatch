@@ -12,8 +12,8 @@ android {
         applicationId = "com.portfolio.farewatch"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         // 127.0.0.1 works with `adb reverse tcp:8101 tcp:8101` (tunnels device localhost
         // to the host through adb — bypasses emulator NAT quirks and the host firewall).
         // Standard Android emulator can also use 10.0.2.2; MuMu's host is 10.0.2.1.

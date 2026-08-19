@@ -42,6 +42,9 @@ interface FarewatchApi {
     @GET("api/watches/{id}/alerts")
     suspend fun alerts(@Path("id") id: String): List<Alert>
 
+    @GET("api/alerts")
+    suspend fun alertFeed(@Query("limit") limit: Int = 20): List<AlertFeedItem>
+
     @GET("api/watches/{id}/weather")
     suspend fun weather(@Path("id") id: String): List<WeatherEstimate>
 

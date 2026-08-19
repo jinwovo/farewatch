@@ -15,6 +15,8 @@ data class Watch(
     val cabin: String,
     val currency: String,
     val alertRule: String,
+    val thresholdAmount: Double? = null,
+    val dropPct: Double? = null,
     val active: Boolean = true,
     val originKorean: String? = null,
     val originName: String? = null,
@@ -37,8 +39,30 @@ data class WatchSummary(
     val spark: List<SparkCell>,
 )
 
+// Gson omits nulls, so a partial update sends only the fields being changed.
 data class UpdateWatchRequest(
-    val active: Boolean,
+    val active: Boolean? = null,
+    val alertRule: String? = null,
+    val thresholdAmount: Double? = null,
+    val dropPct: Double? = null,
+)
+
+/** One row of the global alert feed (alert + watch context). */
+data class AlertFeedItem(
+    val id: String,
+    val watchId: String,
+    val origin: String,
+    val destination: String,
+    val originKorean: String? = null,
+    val destKorean: String? = null,
+    val currency: String,
+    val rule: String,
+    val previousLow: Double?,
+    val newLow: Double,
+    val mistakeFare: Boolean = false,
+    val deepLink: String? = null,
+    val createdAt: String,
+    val notifications: List<NotificationDelivery> = emptyList(),
 )
 
 data class PricePoint(
