@@ -1,60 +1,86 @@
 # farewatch
 
-> 원하는 날짜·도시의 항공권 최저가를 **매시간 추적**하다가, 최저가가 깨지면 **알림 → 최저가 사이트로 바로 이동**시켜 주는 메타서치. 한 달 전쯤 여행을 계획하는 사람을 위한 가격 감시 엔진.
+> 원하는 날짜·도시의 항공권 최저가를 **매시간 대신 지켜보다가**, 조건이 맞으면 **알림 → 최저가 사이트로 바로 이동**시켜 주는 가격 감시 메타서치.
 
 [![ci](https://github.com/jinwovo/farewatch/actions/workflows/ci.yml/badge.svg)](https://github.com/jinwovo/farewatch/actions/workflows/ci.yml)
-&nbsp;·&nbsp; Java 21 · Spring Boot 4.1 · PostgreSQL · Redis · Next.js · Kotlin(Android)
+[![android](https://github.com/jinwovo/farewatch/actions/workflows/android.yml/badge.svg)](https://github.com/jinwovo/farewatch/actions/workflows/android.yml)
+&nbsp; Java 21 · Spring Boot 4.1 · PostgreSQL · Redis · Next.js · Kotlin(Compose)
 
----
+<p align="center">
+  <img src="docs/demo/dashboard.png" width="760" alt="홈 대시보드 — 워치별 현재가·딜 스코어·스파크라인">
+</p>
+<p align="center"><sub>홈 대시보드 (실데이터 라이브 캡처) — 워치마다 현재가 · 역대최저 대비 · 딜 스코어 · 30일 스파크라인 · 일시정지, API 호출은 <code>/api/watches/summary</code> 한 번.</sub></p>
 
-## 데모 (Demo)
+여행을 한 달 전쯤 계획하면 그 사이 가격은 하루에도 몇 번씩 출렁인다. farewatch는 **노선 + 유연한 날짜 + 알림 규칙**을 등록받아 여러 소스를 매시간 폴링하고, 규칙이 발화하면 푸시/이메일로 알린 뒤 **그 가격을 파는 사이트로 딥링크**한다. 예약·결제는 그 사이트의 몫 — 스카이스캐너와 같은 메타서치 모델이다.
 
-| **홈 대시보드** — 워치마다 현재가·역대최저 대비·딜 스코어 칩·30일 스파크라인·일시정지, **API 호출 한 번**(`/api/watches/summary`) |
-|:--:|
-| ![dashboard](docs/demo/dashboard.png) |
+## 핵심 근육 (What this proves)
 
-| **알림 피드** — 전 워치의 발화 이력 한눈에: 목표가 도달·새 최저가·🔥에러요금 의심 (`/api/alerts`) |
-|:--:|
-| ![alert-feed](docs/demo/alert-feed.png) |
+단순 크롤러가 아니라 **분산 가격-감시 엔진**이 심장:
 
-| 워치 만들기 — 공항 자동완성·유연 날짜·시간대 | 워치 상세 — 최저가·알림·**날씨**·히트맵·추이 |
-|:--:|:--:|
-| ![home](docs/demo/home.png) | ![detail](docs/demo/weather.png) |
-| **공항 자동완성** (근처공항·거리, OurAirports 실데이터) | **유연 날짜 캘린더** (특정/조정가능) |
-| ![autocomplete](docs/demo/autocomplete.png) | ![calendar](docs/demo/calendar.png) |
-| **한국어 검색** (전 세계, Wikidata + 큐레이션) | **왕복** (가는/오는 날 + 가는/오는 시간대) |
-| ![korean](docs/demo/korean-search.png) | ![roundtrip](docs/demo/roundtrip.png) |
+- **중복 없는 분산 스케줄링** — N개 인스턴스의 시간당 폴링을 Redis 분산락 → Redis Streams 큐 샤딩으로 *정확히 한 번* 실행
+- **큐 장애복구** — 워커가 죽어도 손실 0: XPENDING+XCLAIM으로 reclaim, 반복 실패 잡은 DLQ 격리
+- **외부 API 보호** — 소스별 토큰버킷 레이트리밋 + 서킷브레이커(직접 구현) + 적응형 폴링(예산 내 고가치 워치 우선)
+- **멀티소스 정규화** — GDS(Amadeus) · 애그리게이터(Travelpayouts) · 시뮬레이터를 하나의 `FarePriceProvider`로 합류
+- **멱등 알림** — 트랜잭션 아웃박스 + `dedup_key`, 같은 하락을 두 번 쏘지 않음 · 재시도→FAILED
+- **결정 레이어** — 백분위·추세·변동성·D-day 기반 **매수 신호 + 0–100 딜 스코어** (ML 없이 숫자로 방어 가능)
+- **에러요금 이상탐지** — 새 최저가가 노선 이력 대비 z-score ≤ −2.5면 🔥 *에러요금 의심* 우선 알림
 
-> 입력 UX는 스카이스캐너에서 빌려오되 출력은 **워치 → 가격 추적 → 알림 → 최저가 사이트 딥링크**. 디자인 시스템: 스타크 화이트 캔버스 + DM Sans + 블랙 필 CTA + 하나의 비비드 코랄 "현재 최저가" 카드.
+## 스크린샷
 
-### Android 앱 (Kotlin · Jetpack Compose)
+**웹** — 스타크 화이트 + DM Sans + 블랙 필 CTA + 코랄 "현재 최저가" 카드 하나. 차트·캘린더·히트맵 전부 의존성 없는 SVG.
 
-웹과 **동일한 기능·디자인**을 네이티브로 구현 — 같은 `/api` 소비, DM Sans · 코랄 "현재 최저가" 카드 · 블랙 필. 라우트는 **IATA + 한국어 + 영문 공항명**으로 표시. (Windows-on-ARM이라 Google 에뮬은 불가 → **MuMu Player**(Hyper-V arm64 Android)에서 실데이터 구동·캡처.)
+<p align="center">
+  <img src="docs/demo/weather.png" width="49%" alt="워치 상세 — 최저가·매수신호·알림·날씨·히트맵">
+  <img src="docs/demo/home.png" width="49%" alt="워치 만들기 — 공항 자동완성·유연 날짜·시간대">
+</p>
+<p align="center"><sub>워치 상세 (코랄 최저가 · 매수신호 · 알림 내역 · 도착지 날씨 · 히트맵) &nbsp;|&nbsp; 워치 만들기 (스카이스캐너식 검색바)</sub></p>
 
-| **홈 대시보드** (웹 파리티 — 가격·딜스코어 칩·스파크라인·정렬·일시정지) | 워치 상세 (코랄 카드·가격 차트) | 날짜별 최저가 히트맵 |
-|:--:|:--:|:--:|
-| ![android-dashboard](docs/demo/android-dashboard.png) | ![android-detail](docs/demo/android-detail.png) | ![android-heatmap](docs/demo/android-detail-2.png) |
-| **검색/생성** (공항·2개월 캘린더) | **한국어 자동완성** (서울 → GMP/ICN) | **시간대·좌석** (프리셋 + 직접 지정) |
-| ![android-search](docs/demo/android-search.png) | ![android-korean](docs/demo/android-search-korean.png) | ![android-time](docs/demo/android-search-2.png) |
+<p align="center">
+  <img src="docs/demo/alert-feed.png" width="90%" alt="전역 알림 피드">
+</p>
+<p align="center"><sub>전역 알림 피드 — 목표가 도달 · 새 최저가 · 🔥에러요금 의심이 규칙 칩으로 구분되어 쌓인다 (<code>/api/alerts</code>)</sub></p>
 
-| **왕복** — 가는/오는 날 범위 + 가는 편·오는 편 **두 개의 출발 시간대** | **알림 파리티** — 전역 알림 피드 + 조건 편집 |
-|:--:|:--:|
-| ![android-roundtrip](docs/demo/android-search-roundtrip.png) | ![android-alerts](docs/demo/android-alerts.png) |
+<details>
+<summary><b>검색 UX 더 보기</b> — 공항 자동완성 · 유연 날짜 캘린더 · 한국어 검색 · 왕복</summary>
+<br>
+<p align="center">
+  <img src="docs/demo/autocomplete.png" width="49%" alt="공항 자동완성">
+  <img src="docs/demo/calendar.png" width="49%" alt="유연 날짜 캘린더">
+</p>
+<p align="center">
+  <img src="docs/demo/korean-search.png" width="49%" alt="한국어 공항 검색">
+  <img src="docs/demo/roundtrip.png" width="49%" alt="왕복 — 두 개의 시간대">
+</p>
+<p align="center"><sub>자동완성(근처공항·거리, OurAirports 실데이터) · 2개월 캘린더 · 전 세계 한국어 검색(Wikidata+큐레이션) · 왕복(가는/오는 편 시간대)</sub></p>
+</details>
 
-### 관측성 (Observability) — 분산 스윕을 눈으로
+**Android (Kotlin · Jetpack Compose)** — 같은 `/api`를 소비하는 네이티브 앱, 웹과 완전 파리티. MuMu(arm64) 실기기에서 실데이터로 검증.
 
-Micrometer가 모든 핫패스에 심은 메트릭(`/actuator/prometheus`)을 **Prometheus + Grafana**(코드 프로비저닝, 익명 read-only `:3004`)로 시각화. 인스턴스를 2개 띄우면 **"poll throughput by instance"**에 두 계열이 쌓여 — *같은 워치를 중복 폴하지 않고* 처리량이 합산되는 게 보인다. 헤드라인 근육(분산 스케줄)의 시각적 증명.
+<p align="center">
+  <img src="docs/demo/android-dashboard.png" width="24%" alt="Android 홈 대시보드">
+  <img src="docs/demo/android-detail.png" width="24%" alt="Android 워치 상세">
+  <img src="docs/demo/android-search.png" width="24%" alt="Android 검색/생성">
+  <img src="docs/demo/android-alerts.png" width="24%" alt="Android 알림 피드">
+</p>
+<p align="center"><sub>홈 대시보드(딜점수 정렬·일시정지) · 상세(코랄 카드·차트) · 검색/생성 · 알림 피드+조건 편집</sub></p>
 
-![grafana](docs/demo/grafana.png)
+<details>
+<summary><b>Android 더 보기</b> — 히트맵 · 한국어 자동완성 · 시간대/좌석 · 왕복</summary>
+<br>
+<p align="center">
+  <img src="docs/demo/android-detail-2.png" width="24%" alt="히트맵">
+  <img src="docs/demo/android-search-korean.png" width="24%" alt="한국어 자동완성">
+  <img src="docs/demo/android-search-2.png" width="24%" alt="시간대·좌석">
+  <img src="docs/demo/android-search-roundtrip.png" width="24%" alt="왕복">
+</p>
+</details>
 
-> 라이브 캡처: instances=**2** · ~6 polls/s · 소스 p95(히스토그램 버킷) · 에러요금 🔥 · 알림 발송(PUSH/EMAIL) · JVM 힙 인스턴스별 2계열. 부하는 오프라인 Simulator로(실 API 쿼터 보호), `.\run-cluster.ps1 -Instances 2 -Simulator`로 재현. → [ADR-0004](docs/adr/0004-observability.md)
+**관측성** — 인스턴스를 2개 띄우면 "poll throughput by instance"에 두 계열이 쌓인다. *같은 워치를 중복 폴하지 않으면서* 처리량이 합산되는, 분산 스케줄의 시각적 증명.
 
----
-
-## 문제 (Problem)
-
-여행을 한 달 전쯤 계획하면, 그 사이 항공권 가격은 **하루에도 몇 번씩 출렁인다**. 사람이 매시간 새로고침할 순 없다.
-`farewatch`는 사용자가 등록한 **노선 + (유연한) 날짜 + 알림 규칙**을 대신 감시한다 — 여러 가격 소스를 매시간 폴링해 최저가를 모으고, **최저가가 갱신되면** 푸시/이메일로 알린 뒤 **그 가격을 파는 사이트로 딥링크**한다. 예약·결제는 그 사이트에서 한다(스카이스캐너와 같은 **메타서치** 모델).
+<p align="center">
+  <img src="docs/demo/grafana.png" width="90%" alt="Grafana 16패널 대시보드 — 2 인스턴스 분산 drain">
+</p>
+<p align="center"><sub>Grafana 16패널 라이브 캡처 (instances=2 · 소스 p95 · 에러요금 · 알림 발송 · JVM) — <code>.\run-cluster.ps1 -Instances 2 -Simulator</code>로 재현 · <a href="docs/adr/0004-observability.md">ADR-0004</a></sub></p>
 
 ## 설계 (Design)
 
@@ -69,126 +95,93 @@ flowchart LR
     AGG --> TP["Travelpayouts"]
     AGG --> SC["LCC 스크래퍼"]
     AGG --> SIM["Simulator"]
-    WORKER -->|최저가 갱신?| DET["변화 감지"]
+    WORKER -->|규칙 발화?| DET["변화 감지"]
     DET -->|멱등 dedup + 재시도| NOTIF["Notifier"]
     NOTIF --> FCM["FCM 푸시 → Android(Compose)"]
     NOTIF --> MAIL["Email"]
-    PG --> WEB["웹 (Next.js)<br/>목록·가격차트·날씨"]
+    PG --> WEB["웹 (Next.js)<br/>대시보드·알림 피드·차트"]
 ```
 
-## 핵심 근육 (What this proves)
-
-단순 가격 크롤러가 아니라 **분산 가격-감시 엔진**이 심장:
-- **중복 없는 분산 스케줄링** — N개 인스턴스에서 시간당 폴링을 ShedLock 분산락(MVP) → Redis Streams 큐 샤딩(스케일)으로 *정확히 한 번* 실행
-- **레이트리밋된 외부 API 보호** — 소스별 토큰버킷 + 서킷브레이커(resilience4j) + 죽은 소스 폴백
-- **멀티소스 정규화** — 이종 소스(GDS·애그리게이터·LCC 스크래퍼·시뮬레이터)를 하나의 `FarePriceProvider`로 합류해 최저가 채택
-- **멱등 알림** — `dedup_key`로 같은 하락을 두 번 쏘지 않음 + 재시도 (멀티채널: FCM 푸시 / Email)
-- **결정 레이어 (단순 추적 → 의사결정)** — 투명한 통계 모델(백분위·추세·변동성·출발까지 일수)로 **지금 사세요 / 기다려도 OK** 신호 + 0–100 **딜 스코어**. ML 없이 모든 추천이 숫자로 방어 가능
-- **에러요금 이상탐지** — 새 최저가가 노선 자체 이력 대비 **z-score ≤ −2.5** 면 *에러요금 의심* 우선 알림 (소스별 임계값 튜닝 없이 순수 통계)
-- **큐 장애복구** — 워커가 잡 처리 중 죽어도(claim 후 ack 없음) 손실 0: **XPENDING + XCLAIM**으로 다른 워커가 reclaim, N회 실패 잡은 **DLQ**로 격리 (무한 재시도 차단)
-
 ## 검증 (Verification)
-> 말이 아니라 실행으로 증명 — 채워지는 중 (로드맵 참고)
 
-- [x] 다른 인스턴스가 락 보유 시 **중복 폴링 0** (Redis 분산락 통합 테스트)
-- [x] 컨슈머그룹 **샤딩** — 두 워커가 잡 분할, 각 워치 정확히 1회 폴 (QueueShardingIntegrationTest)
-- [x] **장애복구** — 워커가 죽어 잡이 미-ack로 남으면 다른 워커가 reclaim해 정확히 1회 폴 · 반복 실패 잡은 **DLQ** 격리 (ChaosRecoveryIntegrationTest)
-- [x] **토큰버킷** 레이트리밋(버스트→거부) + **서킷브레이커**(직접 구현) 보호
-- [x] 적응형 폴링 — 예산 < due 시 **고가치 워치 우선** 큐잉 (AdaptiveSweepIntegrationTest)
-- [x] 알림 **멀티채널 발송**(이메일·푸시) — 아웃박스 + 재시도→FAILED + dedup (NotificationDispatchTest)
-- [x] 폴 **부하 테스트** — k6 30VU: **~145 polls/s · p95 211ms · 0% 에러** (`load/k6-poll.js`)
-- [x] 도착지 **날씨** — Open-Meteo 실예보(D-16) ↔ **평년값** 크로스오버 (라이브: 홍콩 8월 평년 30°C, 다낭 +9일 실예보 34°C)
-- [x] **Android(Compose) 앱 빌드** — Kotlin + Compose + Retrofit, `assembleDebug` → `app-debug.apk` 9.4MB (JDK 17, `android/`)
-- [x] **Amadeus 실어댑터** — OAuth2 토큰 + Flight Offers Search → 최저가 매핑 (AmadeusFareProviderTest, JDK HttpServer 스텁)
-- [x] **관측성** — Prometheus + Grafana **프로비저닝 대시보드(16패널)**, **인스턴스 2개 라이브**로 "poll throughput by instance" 분산 drain 합산 캡처(`docs/demo/grafana.png`) · 소스 p95 히스토그램 버킷 활성 (ADR-0004)
-- [ ] 웹 데모 GIF + Android 에뮬레이터 실행 녹화 (앱 빌드는 완료, 실행 시연만 남음)
+> 말이 아니라 실행으로 증명 — 전 항목 Testcontainers(실 PostgreSQL·Redis) 통합 테스트 + 라이브 확인.
+
+- [x] 다른 인스턴스가 락 보유 시 **중복 폴링 0** (Redis 분산락)
+- [x] 컨슈머그룹 **샤딩** — 두 워커가 잡 분할, 각 워치 정확히 1회 폴
+- [x] **장애복구** — 죽은 워커의 미-ack 잡을 다른 워커가 reclaim해 정확히 1회 폴 · 반복 실패 잡은 DLQ 격리
+- [x] **토큰버킷** 버스트→거부 · **서킷브레이커** 상태머신 · **적응형 폴링**(예산 내 고가치 우선)
+- [x] 알림 **멀티채널 발송** — 아웃박스 · 멱등 dedup · 재시도→FAILED
+- [x] **알림 규칙** — 목표가 이하가 첫 폴에 발화해 전역 피드에 노출 · PATCH 규칙 편집 + 파라미터 검증
+- [x] **대시보드 요약** — 가격·신호·스파크라인 단일 호출 · 일시정지/재개
+- [x] 폴 **부하 테스트** — k6 30VU: ~145 polls/s · p95 211ms · 0% 에러 (`load/k6-poll.js`)
+- [x] **라이브** — 실 Travelpayouts 폴로 새 최저가 알림 발화(EMAIL/PUSH SENT), 목표가 규칙은 `newLow:false`에도 발화하는 것까지 확인
 
 ## 스택 (Stack)
 
 | 영역 | 기술 |
 |---|---|
-| 언어/프레임워크 | Java 21 · Spring Boot 4.1 (Jackson 3) · Gradle |
-| DB | PostgreSQL 16 + Flyway · `ddl-auto: none` · `open-in-view: false` · `price_point` 시계열 |
-| 스케줄/락 | `@Scheduled` 매시간 + **Redis 분산락**(`SET NX PX` + Lua release) → Redis Streams 샤딩 *(P2 / P4)* |
-| 회복탄력성 | 토큰버킷 레이트리밋 · resilience4j 서킷브레이커 *(P4)* |
-| 알림 | FCM 푸시 · Email · `dedup_key` 멱등 + 재시도 *(P3)* |
-| 외부 소스 | Amadeus · Travelpayouts · LCC 스크래퍼(Playwright) · Open-Meteo 날씨 |
-| 프론트 | 웹 Next.js · **Android Kotlin + Jetpack Compose** |
-| 관측 | Micrometer + `/actuator/prometheus` → **Prometheus + Grafana** 프로비저닝 대시보드 16패널 (호스트 스크랩 · 익명 read-only `:3004`) |
-| 테스트 | Testcontainers (`@ServiceConnection`) |
+| 백엔드 | Java 21 · Spring Boot 4.1 (Jackson 3) · Gradle |
+| DB | PostgreSQL 16 + Flyway · `ddl-auto: none` · `price_point` 시계열 + 일별 롤업 리텐션 |
+| 스케줄/큐 | 스윕 하트비트 + Redis 분산락 · Redis Streams 컨슈머그룹 샤딩 + XCLAIM/DLQ |
+| 회복탄력성 | 토큰버킷 레이트리밋 · 서킷브레이커 (둘 다 직접 구현, Redis Lua) |
+| 외부 소스 | Amadeus · Travelpayouts · Open-Meteo(날씨) — 전부 config-gated |
+| 프론트 | 웹 Next.js(App Router·TS strict) · Android Kotlin + Jetpack Compose |
+| 관측 | Micrometer → Prometheus `:9096` + Grafana `:3004` (코드 프로비저닝 16패널) |
+| 테스트 | Testcontainers (`@ServiceConnection`) · GitHub Actions CI (backend + android) |
 
 ## 가격 소스 전략 (Sources)
 
-| 소스 | 잡는 재고 풀 | 도입 |
-|---|---|---|
-| Amadeus Self-Service | 레거시 항공사 (GDS) | P4 |
-| Travelpayouts (Aviasales) | 폭넓은 캐시 최저가 + 가격이력 | P4 |
-| LCC 1곳 스크래퍼 (Playwright) | GDS가 못 잡는 LCC 직판 | P4 (옵션·기본 off) |
-| Simulator | 합성 가격워크 (부하·상시 데모) | P1 |
+| 소스 | 잡는 재고 풀 |
+|---|---|
+| Amadeus Self-Service | 레거시 항공사 (GDS) |
+| Travelpayouts (Aviasales) | 폭넓은 캐시 최저가 + 가격이력 |
+| LCC 스크래퍼 (옵션·기본 off) | GDS가 못 잡는 LCC 직판 |
+| Simulator | 합성 가격워크 (부하·상시 데모) |
 
-> ⚠️ **정직성 노트:** 공개 항공권 가격 API는 사실상 없다(스카이스캐너 = 파트너 전용, 구글 플라이트 = API 없음). 그래서 `farewatch`는 **합법적으로 접근 가능한 상보적 소스**(Amadeus 무료 테스트티어 + Travelpayouts 제휴 + LCC 1곳 스크래퍼)를 `FarePriceProvider`로 합류하고, 부하테스트·상시 데모는 **Simulator**로 돌린다. 엔진(스케줄·레이트리밋·dedup·알림)은 소스와 무관하게 동일하다. 가격 분산의 대부분은 *서로 다른 재고 풀* 몇 개로 잡히며, 같은 GDS를 되파는 사이트를 더 긁는 것은 커버리지가 아니라 유지보수만 늘린다(→ [ADR-0002](docs/adr/0002-multi-source-fare-aggregator.md)).
+> ⚠️ **정직성 노트:** 공개 항공권 가격 API는 사실상 없다(스카이스캐너 = 파트너 전용, 구글 플라이트 = API 없음). 그래서 **합법적으로 접근 가능한 상보적 소스**를 `FarePriceProvider`로 합류하고, 부하테스트·데모는 Simulator로 돌린다. 엔진(스케줄·레이트리밋·dedup·알림)은 소스와 무관하게 동일하다. → [ADR-0002](docs/adr/0002-multi-source-fare-aggregator.md)
 
 ## Quickstart
 
 ```bash
-# 1) 인프라 (PostgreSQL)
-docker compose up -d
-
-# 2) 앱 (포트 8101)
-./gradlew bootRun
-
-# 3) 헬스체크
-curl http://localhost:8101/actuator/health
-
-# 4) 웹 (포트 3005 · /api/* → :8101 프록시 · 의존성 없는 SVG 차트)
-cd web && npm install && npm run dev
+docker compose up -d                  # PostgreSQL·Redis + Prometheus·Grafana
+./gradlew bootRun                     # API :8101
+cd web && npm install && npm run dev  # 웹 :3005 (/api/* → :8101 프록시)
 ```
-
-실제 요금 소스(Travelpayouts)를 켜서 띄울 때는 (Windows):
 
 ```powershell
-# .env의 토큰을 환경변수로 주입 + 컨테이너 기동 + 메모리 바운드 jar 실행
-# (Spring은 .env를 읽지 않으므로 맨손 java -jar는 소스가 조용히 no-op이 된다)
-.\run.ps1          # -Build 로 bootJar 재빌드
+.\run.ps1                                    # 실소스(.env 토큰 주입) + 메모리 바운드 jar 실행
+.\run-cluster.ps1 -Instances 2 -Simulator    # 2 인스턴스 분산 drain을 Grafana(:3004)로 관전
 ```
 
-메트릭은 `GET /actuator/prometheus` — 소스별 호출 지연/성공/스킵, 큐 깊이/DLQ, 알림 발송, 리텐션 등 `farewatch.*` 시리즈.
+## API
 
-**관측성 스택**은 `docker compose up -d`에 포함(Prometheus `:9096` + Grafana `:3004`) — Grafana는 로그인 없이 열리고 farewatch 대시보드가 자동 프로비저닝된다. 인스턴스별 **분산 drain**을 눈으로 보려면:
-
-```powershell
-.\run-cluster.ps1 -Instances 2 -Simulator   # 2개 인스턴스(:8101,:8102) + 관측성, 오프라인 시뮬레이터 부하
-# → http://localhost:3004  "sweep · poll throughput by instance" 두 계열이 합산되는 것 확인
-.\stop-cluster.ps1                            # 인스턴스 + 관측성 정지 (pg/redis는 유지)
-```
-
-### API (P1)
-
-| 메서드 · 경로 | 설명 |
+| 엔드포인트 | 설명 |
 |---|---|
-| `POST /api/watches` | 워치 생성 (노선·유연 날짜·알림 규칙) |
-| `GET /api/watches` | 목록 (`?userRef=` 필터) |
-| `GET /api/watches/{id}` | 단건 |
-| `DELETE /api/watches/{id}` | 삭제 |
-| `POST /api/watches/{id}/poll` | 지금 폴 — 소스별 최저가 적재 + `newLow` 판정 |
-| `GET /api/watches/{id}/prices` | 가격 이력(시계열) |
+| `POST /api/watches` · `GET /api/watches` | 워치 생성 · 목록 |
+| `GET /api/watches/summary` | 홈 대시보드 페이로드 — 현재가·매수신호·30일 스파크라인 (배치 쿼리) |
+| `PATCH /api/watches/{id}` | 일시정지/재개 · 알림 규칙 편집(목표가/급락%, 서버 검증) |
+| `GET /api/watches/{id}/prices · calendar · alerts · weather · signal` | 시계열 · 날짜별 최저가 · 알림 내역 · 날씨 · 매수신호 |
+| `POST /api/watches/{id}/poll` | 즉시 폴 (소스 합류 → 최저가 적재 → 규칙 평가) |
+| `GET /api/alerts` | 전역 알림 피드 (노선·발송상태·딥링크 포함) |
+| `GET /api/airports?q=` · `/{iata}/nearby` | 공항 자동완성(한국어 포함) · 근처 공항 |
 
 ## 로드맵
 
-- [x] **P0** 스캐폴드 — Boot 4.1, PostgreSQL, Flyway 스키마, Testcontainers, CI, ADR
-- [x] **P1** 도메인 + 소스추상화 — 워치 CRUD, `FarePriceProvider`(Simulator), 가격이력 시계열, 웹(Next.js 목록·생성·가격차트)
-- [x] **P2** 분산 스케줄 — 시간당 스윕 + **Redis 분산락**, "락 보유 중 중복폴링 0" 테스트, 변화감지 → `price_alert`(dedup_key 멱등) ⭐
-- [x] **P3 (알림)** — 트랜잭션 **아웃박스** + 디스패처(멱등 dedup · 재시도→FAILED) · 이메일/푸시 **멀티채널**(로그 sender, FCM/SMTP 드롭인) · `/alerts` 발송이력 ✅
-- [x] **Android (Compose) 앱** — Kotlin + Jetpack Compose + Retrofit 클라이언트, `assembleDebug` → APK (JDK 17) · 워치 목록·상세(가격·알림·날씨)·지금폴 · CI `android.yml` ✅ · *남음: FCM 푸시 수신(Firebase 설정 필요)*
-- [x] **P4 (스케일)** — Redis Streams 샤딩 · 토큰버킷 레이트리밋 · 서킷브레이커 · **적응형 폴링** · k6(~145 polls/s) ✅
-- [x] **Amadeus 실어댑터** — Self-Service(OAuth2 + Flight Offers Search) → 최저가 → 구글플라이트 딥링크, config-gated(키 없으면 no-op, `fare_source`로 토글) · 목테스트 ✅ · *라이브: 무료 테스트 키 필요*
-- [x] **Travelpayouts 실어댑터 + 딜 스코어** — 캐시 최저가(Aviasales) 실링크, `.env` 토큰 config-gated ✅ · 딜 스코어 = 매수 신호(고도화 ①)
-- [x] **P5 (날씨)** — Open-Meteo **평년값**(과거 N년 평균) ↔ **D-16 실예보** 크로스오버 · 도착지 좌표(airport) 재사용 · 라이브 확인 ✅
-- [x] **고도화 (차별점)** — ① **매수 신호 + 딜 스코어**(투명 통계 모델, 웹·Android) ② **에러요금 이상탐지**(z-score, 🔥 우선 알림) ③ **큐 장애복구**(XPENDING+XCLAIM reclaim + DLQ, 카오스 테스트) ✅
-- [x] **운영 고도화** — ① **가격이력 리텐션**: raw 90일 + 일별 롤업(`price_point_daily`, min/max/avg/count) 후 purge → *테이블이 시간에 비례해 자라지 않는다*; 알림 근거 행은 영구 보존, 역대최저가는 raw∪롤업 병합(`PriceHistoryService`)으로 리텐션 경계에서도 정확 ② **Micrometer 메트릭**: 소스별 지연·성공/스킵, 큐 깊이·DLQ 게이지, 알림 발송, 스윕/리텐션 카운터 → `/actuator/prometheus` ③ `run.ps1` 런처(.env 주입 — Spring은 .env를 안 읽는다) ✅
-- [x] **관측성 고도화** — **Prometheus + Grafana**(`docker-compose`, 코드 프로비저닝, 익명 read-only `:3004`) · farewatch 대시보드 **16패널**(인스턴스별 폴 처리량 · 스윕 파이프라인 · 소스 p95/스킵 · 알림/에러요금 · 발송 · 리텐션 · JVM/HTTP) · p95 **히스토그램 버킷** 활성 · **멀티인스턴스 런처**(`run-cluster.ps1`) → 인스턴스 2개 라이브로 **분산 drain 합산** 캡처(`docs/demo/grafana.png`) · [ADR-0004](docs/adr/0004-observability.md) ✅ · *남음: k3d 멀티팟(분산 exactly-once는 통합테스트 + `by(instance)` 대시보드로 증명됨)*
-- [x] **대시보드 고도화 (UX)** — 홈이 **라이브 대시보드**로: `GET /api/watches/summary`(현재가 · 매수신호 · 30일 스파크라인을 **배치 쿼리**로 — 브라우저 N+1 없음) + `PATCH /api/watches/{id}`(**일시정지/재개**, 재개 시 즉시 due) · 카드 UI(딜 스코어 칩 · 역대최저 대비 % · 스파크라인 · 최신/가격/딜점수 **정렬** · 상대시간 · **지난 일정** 처리) · 상세 일시정지/삭제(2단계 확인) · 스켈레톤 로딩 · 통합테스트(`WatchDashboardApiTest`) ✅ (`docs/demo/dashboard.png`) · **Android 파리티** — 같은 summary API 소비, Compose 대시보드 카드(가격·칩·Canvas 스파크라인·⏸/▶ 낙관적 토글)·정렬 탭(키드 LazyColumn 스크롤 앵커 → 정렬 시 최상단 복귀)·상세 일시정지/삭제, MuMu 실기기 라이브 검증 ✅ (`docs/demo/android-dashboard.png`)
-- [x] **알림 고도화** — 3가지 알림 규칙이 **사용자 손에**: 상세 페이지 "알림 조건" 에디터(새 최저가 / **목표가 이하** / **N% 급락** 필 선택 + 파라미터 입력)가 `PATCH /api/watches/{id}`로 반영(규칙-파라미터 서버 검증: 목표가·급락%는 값 필수, 급락% ≤ 90) · **전역 알림 피드** `GET /api/alerts`(전 워치의 발화 이력 + 노선·발송상태·딥링크, **배치 3쿼리** — 행별 lazy load 없음) → 홈 "최근 알림" 섹션 · **라이브 검증**: 실 Travelpayouts 워치에 목표가 60,000 설정 → 다음 폴(49,712)이 역대최저가 아님에도(`newLow:false`) **목표가 규칙으로 발화** + EMAIL/PUSH 발송 · `AlertRuleApiTest` ✅ (`docs/demo/alert-feed.png`) · **Android 파리티** — 목록 하단 최근 알림 피드(규칙 칩·🔥뱃지·상대시간, 탭→해당 워치) + 상세 [알림 조건] 인라인 에디터(필 3종+파라미터, 저장→PATCH), MuMu 실기기에서 급락 감지 15% 저장→서버 반영 왕복 검증 ✅ (`docs/demo/android-alerts.png`)
+| 단계 | 한 줄 요약 |
+|:--:|---|
+| ✅ P0–P1 | 스캐폴드(Flyway·Testcontainers·CI·ADR) · 워치 CRUD + 소스 추상화 + 시계열 |
+| ✅ P2 | 분산 스케줄 — 시간당 스윕 + Redis 분산락, 중복 폴링 0 |
+| ✅ P3 | 알림 — 트랜잭션 아웃박스 · 멀티채널 · 멱등 dedup · 재시도 |
+| ✅ P4 | 스케일 — Streams 샤딩 · 토큰버킷 · 서킷브레이커 · 적응형 폴링 · k6 145 polls/s |
+| ✅ P5 | 도착지 날씨 — Open-Meteo 실예보(D-16) ↔ 평년값 크로스오버 |
+| ✅ 실소스 | Amadeus(OAuth2) · Travelpayouts(Aviasales 실링크) — config-gated |
+| ✅ Android | Compose+Retrofit 네이티브 앱, 웹 완전 파리티 (MuMu 실기기 검증) |
+| ✅ 차별점 | 매수 신호+딜 스코어 · 에러요금 z-score 탐지 · 큐 장애복구(XCLAIM+DLQ) |
+| ✅ 운영 | 가격이력 리텐션(일별 롤업+90d purge) · Micrometer 전 핫패스 · 런처 스크립트 |
+| ✅ 관측성 | Prometheus+Grafana 16패널 · 2-인스턴스 분산 drain 라이브 캡처 |
+| ✅ 대시보드 UX | summary 단일 호출 카드(가격·신호·스파크라인) · 정렬 · 일시정지 — 웹·Android |
+| ✅ 알림 UX | 규칙 3종 편집(새 최저가/목표가/급락%) · 전역 알림 피드 — 웹·Android |
+| ⬜ 남은 것 | FCM 실수신(Firebase 설정) · 웹 데모 GIF |
 
 ## ADR
 
