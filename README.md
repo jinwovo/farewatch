@@ -37,9 +37,9 @@
 | **검색/생성** (공항·2개월 캘린더) | **한국어 자동완성** (서울 → GMP/ICN) | **시간대·좌석** (프리셋 + 직접 지정) |
 | ![android-search](docs/demo/android-search.png) | ![android-korean](docs/demo/android-search-korean.png) | ![android-time](docs/demo/android-search-2.png) |
 
-| **왕복** — 가는/오는 날 범위 + 가는 편·오는 편 **두 개의 출발 시간대** |
-|:--:|
-| ![android-roundtrip](docs/demo/android-search-roundtrip.png) |
+| **왕복** — 가는/오는 날 범위 + 가는 편·오는 편 **두 개의 출발 시간대** | **알림 파리티** — 전역 알림 피드 + 조건 편집 |
+|:--:|:--:|
+| ![android-roundtrip](docs/demo/android-search-roundtrip.png) | ![android-alerts](docs/demo/android-alerts.png) |
 
 ### 관측성 (Observability) — 분산 스윕을 눈으로
 
@@ -188,7 +188,7 @@ cd web && npm install && npm run dev
 - [x] **운영 고도화** — ① **가격이력 리텐션**: raw 90일 + 일별 롤업(`price_point_daily`, min/max/avg/count) 후 purge → *테이블이 시간에 비례해 자라지 않는다*; 알림 근거 행은 영구 보존, 역대최저가는 raw∪롤업 병합(`PriceHistoryService`)으로 리텐션 경계에서도 정확 ② **Micrometer 메트릭**: 소스별 지연·성공/스킵, 큐 깊이·DLQ 게이지, 알림 발송, 스윕/리텐션 카운터 → `/actuator/prometheus` ③ `run.ps1` 런처(.env 주입 — Spring은 .env를 안 읽는다) ✅
 - [x] **관측성 고도화** — **Prometheus + Grafana**(`docker-compose`, 코드 프로비저닝, 익명 read-only `:3004`) · farewatch 대시보드 **16패널**(인스턴스별 폴 처리량 · 스윕 파이프라인 · 소스 p95/스킵 · 알림/에러요금 · 발송 · 리텐션 · JVM/HTTP) · p95 **히스토그램 버킷** 활성 · **멀티인스턴스 런처**(`run-cluster.ps1`) → 인스턴스 2개 라이브로 **분산 drain 합산** 캡처(`docs/demo/grafana.png`) · [ADR-0004](docs/adr/0004-observability.md) ✅ · *남음: k3d 멀티팟(분산 exactly-once는 통합테스트 + `by(instance)` 대시보드로 증명됨)*
 - [x] **대시보드 고도화 (UX)** — 홈이 **라이브 대시보드**로: `GET /api/watches/summary`(현재가 · 매수신호 · 30일 스파크라인을 **배치 쿼리**로 — 브라우저 N+1 없음) + `PATCH /api/watches/{id}`(**일시정지/재개**, 재개 시 즉시 due) · 카드 UI(딜 스코어 칩 · 역대최저 대비 % · 스파크라인 · 최신/가격/딜점수 **정렬** · 상대시간 · **지난 일정** 처리) · 상세 일시정지/삭제(2단계 확인) · 스켈레톤 로딩 · 통합테스트(`WatchDashboardApiTest`) ✅ (`docs/demo/dashboard.png`) · **Android 파리티** — 같은 summary API 소비, Compose 대시보드 카드(가격·칩·Canvas 스파크라인·⏸/▶ 낙관적 토글)·정렬 탭(키드 LazyColumn 스크롤 앵커 → 정렬 시 최상단 복귀)·상세 일시정지/삭제, MuMu 실기기 라이브 검증 ✅ (`docs/demo/android-dashboard.png`)
-- [x] **알림 고도화** — 3가지 알림 규칙이 **사용자 손에**: 상세 페이지 "알림 조건" 에디터(새 최저가 / **목표가 이하** / **N% 급락** 필 선택 + 파라미터 입력)가 `PATCH /api/watches/{id}`로 반영(규칙-파라미터 서버 검증: 목표가·급락%는 값 필수, 급락% ≤ 90) · **전역 알림 피드** `GET /api/alerts`(전 워치의 발화 이력 + 노선·발송상태·딥링크, **배치 3쿼리** — 행별 lazy load 없음) → 홈 "최근 알림" 섹션 · **라이브 검증**: 실 Travelpayouts 워치에 목표가 60,000 설정 → 다음 폴(49,712)이 역대최저가 아님에도(`newLow:false`) **목표가 규칙으로 발화** + EMAIL/PUSH 발송 · `AlertRuleApiTest` ✅ (`docs/demo/alert-feed.png`)
+- [x] **알림 고도화** — 3가지 알림 규칙이 **사용자 손에**: 상세 페이지 "알림 조건" 에디터(새 최저가 / **목표가 이하** / **N% 급락** 필 선택 + 파라미터 입력)가 `PATCH /api/watches/{id}`로 반영(규칙-파라미터 서버 검증: 목표가·급락%는 값 필수, 급락% ≤ 90) · **전역 알림 피드** `GET /api/alerts`(전 워치의 발화 이력 + 노선·발송상태·딥링크, **배치 3쿼리** — 행별 lazy load 없음) → 홈 "최근 알림" 섹션 · **라이브 검증**: 실 Travelpayouts 워치에 목표가 60,000 설정 → 다음 폴(49,712)이 역대최저가 아님에도(`newLow:false`) **목표가 규칙으로 발화** + EMAIL/PUSH 발송 · `AlertRuleApiTest` ✅ (`docs/demo/alert-feed.png`) · **Android 파리티** — 목록 하단 최근 알림 피드(규칙 칩·🔥뱃지·상대시간, 탭→해당 워치) + 상세 [알림 조건] 인라인 에디터(필 3종+파라미터, 저장→PATCH), MuMu 실기기에서 급락 감지 15% 저장→서버 반영 왕복 검증 ✅ (`docs/demo/android-alerts.png`)
 
 ## ADR
 
